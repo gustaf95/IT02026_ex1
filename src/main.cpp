@@ -3,6 +3,11 @@
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 #include <Adafruit_NeoPixel.h>
+#include "DHT.h"
+
+#define DHTPIN 5
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
 
 // Set the LCD address to 0x27 for a 20 chars and 4 line display
 LiquidCrystal_I2C lcd(0x27, 20, 4);
@@ -78,21 +83,21 @@ enum AppMode : uint8_t {
 };
 
 uint8_t currentMode = MODE_INITIAL;
-const unsigned int BEEP_MODE_SELECT_FREQ = 1000;
-const unsigned long BEEP_MODE_SELECT_MS = 100;
-const unsigned int BEEP_MODE2_FREQ = 2000;
-const unsigned long BEEP_MODE2_MS = 50;
-const unsigned int BEEP_MODE3_FREQ = 1000;
-const unsigned long BEEP_MODE3_MS = 100;
+const uint16_t BEEP_MODE_SELECT_FREQ = 1000;
+const uint32_t BEEP_MODE_SELECT_MS = 100;
+const uint16_t BEEP_MODE2_FREQ = 2000;
+const uint32_t BEEP_MODE2_MS = 50;
+const uint16_t BEEP_MODE3_FREQ = 1000;
+const uint32_t BEEP_MODE3_MS = 100;
 
 float currentTemperature = 0.0f;
 float currentHumidity = 0.0f;
-unsigned long lastDhtReadMs = 0;
-const unsigned long dhtReadIntervalMs = 1000;
+uint32_t lastDhtReadMs = 0;
+const uint32_t dhtReadIntervalMs = 1000;
 
-unsigned long lastModeChange = 0;
-const unsigned long modeIntervalMs = 3000;
-const unsigned long digitOnMs = 2;
+uint32_t lastModeChange = 0;
+const uint32_t modeIntervalMs = 3000;
+const uint32_t digitOnMs = 2;
 
 const uint16_t fndPinTestSequence[14] = {
   SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F,
@@ -104,62 +109,21 @@ uint16_t currentMode1Masks[4] = {0, 0, 0, 0};
 bool mode1FndTestDone = false;
 uint8_t currentFndDigit = 0;
 uint8_t currentFndStep = 0;
-unsigned long lastFndTestMs = 0;
-const unsigned long fndTestIntervalMs = 300;
+uint32_t lastFndTestMs = 0;
+const uint32_t fndTestIntervalMs = 300;
 
-// forward declaration for functions defined later in this file
-void displayLcd(const char *line0, const char *line1, const char *line2, const char *line3);
-void refreshDisplay(const uint16_t masks[4]);
-void updateMode1Fnd(unsigned long now);
-bool readDHT11(float &temperature, float &humidity)
+void displayLcd(const char *line0, const char *line1, const char *line2, const char *line3)
 {
-  uint8_t data[5] = {0, 0, 0, 0, 0};
-
-  pinMode(dht11_pin, OUTPUT);
-  digitalWrite(dht11_pin, LOW);
-  delay(20);
-  digitalWrite(dht11_pin, HIGH);
-  delayMicroseconds(40);
-  pinMode(dht11_pin, INPUT_PULLUP);
-
-  unsigned long timeout = micros();
-  while (digitalRead(dht11_pin) == HIGH) {
-    if (micros() - timeout > 100) return false;
-  }
-  timeout = micros();
-  while (digitalRead(dht11_pin) == LOW) {
-    if (micros() - timeout > 100) return false;
-  }
-  timeout = micros();
-  while (digitalRead(dht11_pin) == HIGH) {
-    if (micros() - timeout > 100) return false;
-  }
-
-  for (uint8_t i = 0; i < 40; ++i) {
-    timeout = micros();
-    while (digitalRead(dht11_pin) == LOW) {
-      if (micros() - timeout > 100) return false;
-    }
-    timeout = micros();
-    while (digitalRead(dht11_pin) == HIGH) {
-      if (micros() - timeout > 100) return false;
-    }
-    unsigned long pulseLength = micros() - timeout;
-    data[i / 8] <<= 1;
-    if (pulseLength > 40) {
-      data[i / 8] |= 1;
-    }
-  }
-
-  if (data[4] != ((data[0] + data[1] + data[2] + data[3]) & 0xFF)) {
-    return false;
-  }
-
-  humidity = data[0] + data[1] * 0.1f;
-  temperature = data[2] + data[3] * 0.1f;
-  return true;
+	lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(line0);
+  lcd.setCursor(0, 1);
+  lcd.print(line1);
+  lcd.setCursor(0, 2);
+  lcd.print(line2);
+  lcd.setCursor(0, 3);
+  lcd.print(line3);
 }
-
 void updateNeoPixels(float temperature, float humidity)
 {
   uint32_t tempColor = (temperature >= 24.0f) ? pixels.Color(255, 0, 0) : pixels.Color(0, 0, 255);
@@ -174,7 +138,7 @@ void updateNeoPixels(float temperature, float humidity)
   pixels.show();
 }
 
-void updateMode1Fnd(unsigned long now)
+void updateMode1Fnd(uint32_t now)
 {
   if (mode1FndTestDone) {
     return;
@@ -316,24 +280,6 @@ void refreshDisplay( uint16_t masks0, uint16_t masks1, uint16_t masks2, uint16_t
   }
 }
 
-void displayLcd(const char *line0, const char *line1, const char *line2, const char *line3)
-{
-	lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print(line0);
-  lcd.setCursor(0, 1);
-  lcd.print(line1);
-  lcd.setCursor(0, 2);
-  lcd.print(line2);
-  lcd.setCursor(0, 3);
-  lcd.print(line3);
-}
-
-void initDisplay(void)
-{
-	displayLcd("  ELEVATORSYSTEM", "   CIRCUIT DESIGN", "   & PROGRAMMING", "    2026.06.13");
-}
-
 void setup() {
   Serial.begin(9600);
   Serial.println("System initializing...");
@@ -367,7 +313,7 @@ void setup() {
 void loop() {
   char customKey = customKeypad.getKey();
   static char lastKey = 0;
-  unsigned long now = millis();
+  uint32_t now = millis();
 
   if (customKey && customKey != lastKey) {
     Serial.println(customKey);
@@ -383,11 +329,10 @@ void loop() {
 
   if (currentMode != MODE_2) {
     if (now - lastDhtReadMs >= dhtReadIntervalMs) {
-      float temp, hum;
-      if (readDHT11(temp, hum)) {
-        currentTemperature = temp;
-        currentHumidity = hum;
-      }
+      float humidity  = dht.readHumidity();
+      float temperature = dht.readTemperature();
+      currentTemperature = temperature;
+      currentHumidity = humidity;
       updateNeoPixels(currentTemperature, currentHumidity);
       lastDhtReadMs = now;
     }
