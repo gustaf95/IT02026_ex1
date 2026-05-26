@@ -91,8 +91,8 @@ constexpr uint16_t DOOR_RIGHT_OPEN_MASK = SEG_B | SEG_C;
 
 const uint16_t fndPinTestSequence[14] = {
   SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F,
-  SEG_G, SEG_H, SEG_J, SEG_K, SEG_L, SEG_M,
-  SEG_N, SEG_P
+  SEG_H, SEG_J, SEG_K, SEG_L, SEG_M, SEG_N,
+  SEG_G, SEG_P
 };
 constexpr size_t fndPinTestSequenceLength = sizeof(fndPinTestSequence) / sizeof(fndPinTestSequence[0]);
 
@@ -428,10 +428,10 @@ void enterInitialScreen()
 {
   currentMode = MODE_INITIAL;
   showLcdLines(
-    "  ELEVATORSYSTEM",
-    "   CIRCUIT DESIGN",
-    "   & PROGRAMMING",
-    "    2026.06.13"
+    " ELEVATOR SYSTEM",
+    "  CIRCUIT DESIGN",
+    "  & PROGRAMMING",
+    "   2026.06.13"
   );
 }
 
@@ -617,7 +617,7 @@ void showMode2Lcd()
   snprintf(line2, sizeof(line2), "MODE:%-4s DOOR:%-5s", mode2ModeLabel(), mode2DoorLabel());
   buildTemperatureHumidityLine(line3);
 
-  showLcdLines("    ELEVSYSTEM", line1, line2, line3);
+  showLcdLines("    ELEV SYSTEM", line1, line2, line3);
 }
 
 void updateMode2Pixels(uint32_t now)
@@ -747,15 +747,17 @@ void updateMode2(uint32_t now)
 
 void printMode3MenuToSerial()
 {
+  Serial.println(F("[ 관리자 모드 ]"));
   Serial.println();
-  Serial.println(F("DEVICE LIST"));
-  Serial.println(F("1: LCD"));
-  Serial.println(F("2: DHT11"));
-  Serial.println(F("3: NEO PIXEL"));
-  Serial.println(F("4: KEYPAD"));
-  Serial.println(F("5: BUZZER"));
-  Serial.println(F("9: EXIT"));
-  Serial.print(F("SELECT NUMBER: "));
+  Serial.println(F("> 장치 리스트 (DEVICE LIST):"));
+  Serial.println(F("  1. LCD 전체 점등 테스트"));
+  Serial.println(F("  2. DHT11 온습도 동적 감지"));
+  Serial.println(F("  3. NeoPixel RGB 순자 점등"));
+  Serial.println(F("  4. 키패드 입력 스캔 테스트"));
+  Serial.println(F("  5. 부저 주파수 출력 테스트"));
+  Serial.println(F("모드 탈출은 키 '9'를 사용하십시오."));
+  Serial.println(F("------------------------------------------"));
+  Serial.print(F("명령어 입력 : [  ]"));
 }
 
 void returnToMode3Menu()
@@ -790,12 +792,12 @@ void showMode3Menu()
   snprintf(line3, sizeof(line3), "SELECT NUMBER:[%c]", mode3PendingCommand == '\0' ? ' ' : mode3PendingCommand);
 
   showLcdLines(
-    "DEVICE TESTING",
+    "    DEVICE TESTING",
     "1:LCD 2:DHT 3:NEO",
     "4:KEY 5:BUZ 9:EXIT",
     line3
   );
-  setFndText("TEST");
+  setFndText("ADMI");
 
   if (!mode3MenuPrinted) {
     printMode3MenuToSerial();
@@ -820,11 +822,10 @@ void startMode3DhtTest(uint32_t now)
   mode3LastStepMs = now;
   mode3StartTemperature = roundSensorValue(currentTemperature);
   mode3StartHumidity = roundSensorValue(currentHumidity);
-  Serial.print(F("(TEST START) TEMP:"));
-  Serial.print(mode3StartTemperature);
-  Serial.print(F("C HUMI:"));
-  Serial.print(mode3StartHumidity);
-  Serial.println(F("%"));
+  Serial.print(F("진행 시간 : 0s | T:"));
+  Serial.print(currentTemperature, 1);
+  Serial.print(F(" H:"));
+  Serial.print(currentHumidity, 1);
 }
 
 void startMode3NeoTest(uint32_t now)
@@ -852,9 +853,7 @@ void startMode3BuzzerTest(uint32_t now)
 
 void executeMode3Command(char command, uint32_t now)
 {
-  Serial.print(F("COMMAND "));
-  Serial.print(command);
-  Serial.println(F(" EXECUTE"));
+  Serial.println();
 
   switch (command) {
     case '1':
@@ -883,6 +882,17 @@ void executeMode3Command(char command, uint32_t now)
   mode3PendingCommand = '\0';
 }
 
+void redrawMode3InputLine()
+{
+  Serial.print(F("\r명령어 입력 : [ "));
+  if (mode3PendingCommand != '\0') {
+    Serial.print(mode3PendingCommand);
+  } else {
+    Serial.print(' ');
+  }
+  Serial.print(F(" ]"));
+}
+
 void handleMode3Serial(uint32_t now)
 {
   while (Serial.available() > 0) {
@@ -895,27 +905,31 @@ void handleMode3Serial(uint32_t now)
     if (received == '\r' || received == '\n') {
       if (mode3PendingCommand != '\0') {
         Serial.println();
-        executeMode3Command(mode3PendingCommand, now);
+        char cmd = mode3PendingCommand;
+        mode3PendingCommand = '\0';
+        executeMode3Command(cmd, now);
       }
       continue;
     }
 
     if (received == 8 || received == 127) {
       mode3PendingCommand = '\0';
+      redrawMode3InputLine();
       continue;
     }
 
-    if (received == '1' || received == '2' || received == '3' || received == '4' || received == '5' || received == '9') {
+    if (received == '1' || received == '2' || received == '3' ||
+        received == '4' || received == '5' || received == '9') {
       mode3PendingCommand = received;
-      Serial.print(received);
+      redrawMode3InputLine();
     }
   }
 }
 
-void showMode3ResultScreen(const char *line0, const char *line1)
+void showMode3ResultScreen(const char *line1, const char *line2)
 {
-  showLcdLines(line0, line1, "", "");
-  setFndText("TEST");
+  showLcdLines("", line1, line2, "");
+  setFndText("ADMI");
 }
 
 void updateMode3(uint32_t now)
@@ -929,7 +943,7 @@ void updateMode3(uint32_t now)
       break;
 
     case MODE3_LCD_TEST:
-      setFndText("TEST");
+      setFndText("ADMI");
       if (now - mode3LastStepMs >= mode3LcdFillStepMs) {
         mode3LastStepMs = now;
         uint8_t row = mode3StepIndex / LCD_COLUMNS;
@@ -947,7 +961,7 @@ void updateMode3(uint32_t now)
       break;
 
     case MODE3_LCD_RESULT:
-      showMode3ResultScreen("LCD TEST OK", "[RESULT: PASS]");
+      showMode3ResultScreen("    LCD TEST OK", "   [RESULT: PASS]");
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
@@ -956,35 +970,50 @@ void updateMode3(uint32_t now)
     case MODE3_DHT_TEST: {
       char line2[LCD_COLUMNS + 1];
       buildTemperatureHumidityLine(line2);
-      showLcdLines("DHT11 DYNAMIC TEST", "WAIT FOR CHANGE...", line2, "");
-      setFndText("TEST");
+      showLcdLines("DHT11 DYNAMIC TEST", "WAIT FOR CHANGE.....", line2, "");
+      setFndText("ADMI");
 
-      int currentTemp = roundSensorValue(currentTemperature);
-      int currentHumi = roundSensorValue(currentHumidity);
-      if (currentTemp != mode3StartTemperature || currentHumi != mode3StartHumidity) {
-        Serial.print(F("(TEST END) SEC:"));
-        Serial.print((now - mode3StateStartedMs) / 1000);
-        Serial.print(F(" TEMP:"));
-        Serial.print(currentTemp);
-        Serial.print(F("C HUMI:"));
-        Serial.print(currentHumi);
-        Serial.println(F("% [CHANGE DETECTED]"));
-        mode3State = MODE3_DHT_RESULT;
-        mode3StateStartedMs = now;
+      uint32_t elapsedSec = (now - mode3StateStartedMs) / 1000;
+      if (now - mode3LastStepMs >= 1000) {
+        mode3LastStepMs = now;
+        Serial.print(F("\r진행 시간 : "));
+        Serial.print(elapsedSec);
+        Serial.print(F("s | T:"));
+        Serial.print(currentTemperature, 1);
+        Serial.print(F(" H:"));
+        Serial.print(currentHumidity, 1);
+        Serial.print(F("  "));
+      }
+
+      {
+        int currentTemp = roundSensorValue(currentTemperature);
+        int currentHumi = roundSensorValue(currentHumidity);
+        if (currentTemp != mode3StartTemperature || currentHumi != mode3StartHumidity) {
+          Serial.println();
+          Serial.print(F("진행 시간 : "));
+          Serial.print(elapsedSec);
+          Serial.print(F("s | T:"));
+          Serial.print(currentTemperature, 1);
+          Serial.print(F(" H:"));
+          Serial.print(currentHumidity, 1);
+          Serial.println(F(" [변경 감지]"));
+          mode3State = MODE3_DHT_RESULT;
+          mode3StateStartedMs = now;
+        }
       }
       break;
     }
 
     case MODE3_DHT_RESULT:
-      showMode3ResultScreen("DHT11 TEST OK", "[RESULT: PASS]");
+      showMode3ResultScreen("   DHT11 TEST OK", "   [RESULT: PASS]");
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
       break;
 
     case MODE3_NEO_TEST:
-      showLcdLines("NEOPIXEL TESTING", "", "", "");
-      setFndText("TEST");
+      showLcdLines("NEO PIXEL TESTING..", "", "", "");
+      setFndText("ADMI");
       if (now - mode3LastStepMs >= mode3NeoStepMs) {
         mode3LastStepMs = now;
         uint8_t colorIndex = mode3StepIndex / NUM_PIXELS;
@@ -1004,7 +1033,7 @@ void updateMode3(uint32_t now)
       break;
 
     case MODE3_NEO_RESULT:
-      showMode3ResultScreen("NEOPIXEL TEST OK", "[RESULT: PASS]");
+      showMode3ResultScreen(" NEO PIXEL TEST OK", " [RESULT: ALL PASS]");
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
@@ -1017,13 +1046,13 @@ void updateMode3(uint32_t now)
       } else {
         snprintf(line3, sizeof(line3), "PRESSED: --");
       }
-      showLcdLines("KEYPAD TESTING...", "PUSH ANY KEY", "(9: END)", line3);
-      setFndText("TEST");
+      showLcdLines("KEYPAD TESTING...", "PUSH ANY KEY (9:END)", "", line3);
+      setFndText("ADMI");
       break;
     }
 
     case MODE3_KEYPAD_RESULT:
-      showMode3ResultScreen("KEYPAD TEST OK", "[RESULT: PASS]");
+      showMode3ResultScreen(" KEYPAD TEST OK", " [RESULT: ALL PASS]");
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
@@ -1032,7 +1061,7 @@ void updateMode3(uint32_t now)
     case MODE3_BUZZER_TEST: {
       char line1[LCD_COLUMNS + 1];
       showLcdLines("BUZZER TESTING...", "", "", "");
-      setFndText("TEST");
+      setFndText("ADMI");
 
       if (mode3StepIndex < 4) {
         snprintf(line1, sizeof(line1), "[FREQ:%3uHz]", buzzerTestFrequencies[mode3StepIndex]);
@@ -1054,7 +1083,7 @@ void updateMode3(uint32_t now)
     }
 
     case MODE3_BUZZER_RESULT:
-      showMode3ResultScreen("BUZZER TEST OK", "[RESULT: PASS]");
+      showMode3ResultScreen("   BUZZER TEST OK", "   [RESULT: PASS]");
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
@@ -1113,10 +1142,10 @@ void handleButtonPress(char key, uint32_t now)
 void updateInitialMode()
 {
   showLcdLines(
-    "  ELEVATORSYSTEM",
-    "   CIRCUIT DESIGN",
-    "   & PROGRAMMING",
-    "    2026.06.13"
+    " ELEVATOR SYSTEM",
+    "  CIRCUIT DESIGN",
+    "  & PROGRAMMING",
+    "   2026.06.13"
   );
   setFndText("ELEV");
 }
