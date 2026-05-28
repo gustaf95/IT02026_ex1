@@ -582,6 +582,22 @@ void setMode2DoorMasks(bool showDoor, bool doorOpen)
 
 void updateMode2Fnd(uint32_t now)
 {
+  if (mode2State == MODE2_MOVING_UP) {
+    currentDisplayMasks[0] = charToMask('U');
+    currentDisplayMasks[1] = charToMask('P');
+    currentDisplayMasks[2] = charToMask(static_cast<char>('0' + mode2CurrentFloor));
+    currentDisplayMasks[3] = charToMask('F');
+    return;
+  }
+
+  if (mode2State == MODE2_MOVING_DOWN) {
+    currentDisplayMasks[0] = charToMask('D');
+    currentDisplayMasks[1] = charToMask('N');
+    currentDisplayMasks[2] = charToMask(static_cast<char>('0' + mode2CurrentFloor));
+    currentDisplayMasks[3] = charToMask('F');
+    return;
+  }
+
   bool showDoor = true;
   bool doorOpen = false;
 
