@@ -3,6 +3,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 #include <Adafruit_NeoPixel.h>
+#include <MsTimer2.h>
 #include <ctype.h>
 #include <math.h>
 #include "DHT.h"
@@ -26,7 +27,7 @@ constexpr uint8_t LCD_DEGREE_CHAR = 1;
 constexpr uint8_t LCD_BLOCK_CHAR = 2;
 
 constexpr uint32_t dhtReadIntervalMs = 2000;
-constexpr uint32_t digitOnMs = 2;
+constexpr uint32_t digitOnMs = 1;
 constexpr uint32_t fndTestIntervalMs = 300;
 constexpr uint32_t mode1TestingMs = 3000;
 constexpr uint32_t mode1ResultMs = 3000;
@@ -84,10 +85,8 @@ constexpr uint16_t SEG_M = 1 << 11;
 constexpr uint16_t SEG_N = 1 << 12;
 constexpr uint16_t SEG_P = 1 << 13;
 
-constexpr uint16_t DOOR_LEFT_CLOSED_MASK = SEG_B | SEG_C;
-constexpr uint16_t DOOR_RIGHT_CLOSED_MASK = SEG_E | SEG_F;
-constexpr uint16_t DOOR_LEFT_OPEN_MASK = SEG_E | SEG_F;
-constexpr uint16_t DOOR_RIGHT_OPEN_MASK = SEG_B | SEG_C;
+constexpr uint16_t DOOR_CLOSED_MASK = SEG_A | SEG_G | SEG_L | SEG_D;
+constexpr uint16_t DOOR_OPEN_MASK = SEG_F | SEG_E | SEG_B | SEG_C;
 
 const uint16_t fndPinTestSequence[14] = { SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F, 
                                    SEG_G, SEG_H, SEG_J, SEG_K, SEG_L, SEG_M, SEG_N, SEG_P};
@@ -169,7 +168,7 @@ float currentHumidity = NAN;
 uint32_t lastDhtReadMs = 0;
 
 char lcdCache[LCD_ROWS][LCD_COLUMNS + 1] = {{0}};
-uint16_t currentDisplayMasks[4] = {0, 0, 0, 0};
+volatile uint16_t currentDisplayMasks[4] = {0, 0, 0, 0};
 
 bool mode1Paused = false;
 uint8_t mode1DigitIndex = 0;
@@ -358,21 +357,20 @@ void writeDigitSegments(uint8_t digit, uint16_t mask)
 {
   const uint8_t *pins = (digit < 2) ? seg_pins1 : seg_pins2;
   for (uint8_t i = 0; i < 14; ++i) {
-    digitalWrite(pins[i], (mask & (1 << i)) ? LOW : HIGH);
+    digitalWrite(pins[i], ((mask>>i) & 0x1)? LOW : HIGH);
   }
 }
 
-void refreshDisplay(const uint16_t masks[4])
+void displayISR()
 {
-  for (uint8_t digit = 0; digit < 2; ++digit) {
-    writeDigitSegments(digit, masks[digit]);
-    writeDigitSegments(digit + 2, masks[digit + 2]);
-    digitalWrite(digit_pins[digit], HIGH);
-    digitalWrite(digit_pins[digit + 2], HIGH);
-    delay(digitOnMs);
-    digitalWrite(digit_pins[digit], LOW);
-    digitalWrite(digit_pins[digit + 2], LOW);
-  }
+  static uint8_t phase = 0;
+  digitalWrite(digit_pins[phase], LOW);
+  digitalWrite(digit_pins[phase + 2], LOW);
+  phase ^= 1;
+  writeDigitSegments(phase, (uint16_t)currentDisplayMasks[phase]);
+  writeDigitSegments(phase + 2, (uint16_t)currentDisplayMasks[phase + 2]);
+  digitalWrite(digit_pins[phase], HIGH);
+  digitalWrite(digit_pins[phase + 2], HIGH);
 }
 
 void setAllPixels(uint32_t color)
@@ -512,7 +510,7 @@ void updateMode1(uint32_t now)
 {
   switch (mode1Stage) {
     case MODE1_STAGE_SCAN:
-      showMode1ActiveScreen();
+      showMode1ActiveScreen();  // LCD 출력만 담당하도록 변경
       if (now - mode1LastStepMs >= fndTestIntervalMs) {
         mode1LastStepMs = now;
         if (isMode1LastStep()) {
@@ -525,6 +523,9 @@ void updateMode1(uint32_t now)
             ++mode1DigitIndex;
           }
         }
+        // step이 바뀔 때만 mask 갱신
+        clearDisplayMasks();
+        currentDisplayMasks[mode1DigitIndex] = fndPinTestSequence[mode1SegmentIndex];
       }
       break;
 
@@ -573,8 +574,8 @@ const char *mode2DoorLabel()
 
 void setMode2DoorMasks(bool showDoor, bool doorOpen)
 {
-  currentDisplayMasks[0] = showDoor ? (doorOpen ? DOOR_LEFT_OPEN_MASK : DOOR_LEFT_CLOSED_MASK) : 0;
-  currentDisplayMasks[1] = showDoor ? (doorOpen ? DOOR_RIGHT_OPEN_MASK : DOOR_RIGHT_CLOSED_MASK) : 0;
+  currentDisplayMasks[0] = showDoor ? (doorOpen ? DOOR_OPEN_MASK : DOOR_CLOSED_MASK) : 0;
+  currentDisplayMasks[1] = showDoor ? (doorOpen ? DOOR_OPEN_MASK : DOOR_CLOSED_MASK) : 0;
   currentDisplayMasks[2] = charToMask(static_cast<char>('0' + mode2CurrentFloor));
   currentDisplayMasks[3] = charToMask('F');
 }
@@ -1201,6 +1202,9 @@ void setup()
   updateSensorValues(millis(), true);
   resetMode1State();
   enterInitialScreen();
+
+  MsTimer2::set(digitOnMs, displayISR);
+  MsTimer2::start();
 }
 
 void loop()
@@ -1231,5 +1235,4 @@ void loop()
   }
 
   updateNeoPixelsForCurrentMode(now);
-  refreshDisplay(currentDisplayMasks);
 }
