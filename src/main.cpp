@@ -89,11 +89,8 @@ constexpr uint16_t DOOR_RIGHT_CLOSED_MASK = SEG_E | SEG_F;
 constexpr uint16_t DOOR_LEFT_OPEN_MASK = SEG_E | SEG_F;
 constexpr uint16_t DOOR_RIGHT_OPEN_MASK = SEG_B | SEG_C;
 
-const uint16_t fndPinTestSequence[14] = {
-  SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F,
-  SEG_H, SEG_J, SEG_K, SEG_L, SEG_M, SEG_N,
-  SEG_G, SEG_P
-};
+const uint16_t fndPinTestSequence[14] = { SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F, 
+                                   SEG_G, SEG_H, SEG_J, SEG_K, SEG_L, SEG_M, SEG_N, SEG_P};
 constexpr size_t fndPinTestSequenceLength = sizeof(fndPinTestSequence) / sizeof(fndPinTestSequence[0]);
 
 const uint8_t degreeCharBitmap[8] = {
@@ -271,57 +268,57 @@ uint16_t charToMask(char rawChar)
     case '1':
       return SEG_B | SEG_C;
     case '2':
-      return SEG_A | SEG_B | SEG_D | SEG_E | SEG_G | SEG_J;
+      return SEG_A | SEG_B | SEG_D | SEG_E | SEG_N | SEG_J;
     case '3':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_G | SEG_J;
+      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_N | SEG_J;
     case '4':
-      return SEG_B | SEG_C | SEG_F | SEG_G | SEG_J;
+      return SEG_B | SEG_C | SEG_F | SEG_N | SEG_J;
     case '5':
-      return SEG_A | SEG_C | SEG_D | SEG_F | SEG_G | SEG_J;
+      return SEG_A | SEG_C | SEG_D | SEG_F | SEG_N | SEG_J;
     case '6':
-      return SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G | SEG_J;
+      return SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_N | SEG_J;
     case '7':
       return SEG_A | SEG_B | SEG_C;
     case '8':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G | SEG_J;
+      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F | SEG_N | SEG_J;
     case '9':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_F | SEG_G | SEG_J;
+      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_F | SEG_N | SEG_J;
     case 'A':
-      return SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G | SEG_J;
+      return SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_N | SEG_J;
     case 'B':
-      return SEG_C | SEG_D | SEG_E | SEG_F | SEG_G | SEG_J | SEG_L | SEG_N;
+      return SEG_C | SEG_D | SEG_E | SEG_F | SEG_J | SEG_L | SEG_N;
     case 'C':
       return SEG_A | SEG_D | SEG_E | SEG_F;
     case 'D':
-      return SEG_B | SEG_C | SEG_D | SEG_E | SEG_G | SEG_L | SEG_N;
+      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F;
     case 'E':
-      return SEG_A | SEG_D | SEG_E | SEG_F | SEG_G | SEG_J;
+      return SEG_A | SEG_D | SEG_E | SEG_F | SEG_N | SEG_J;
     case 'F':
-      return SEG_A | SEG_E | SEG_F | SEG_G | SEG_J;
+      return SEG_A | SEG_E | SEG_F | SEG_N;
     case 'G':
       return SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_J | SEG_N;
     case 'H':
-      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_G | SEG_J;
+      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_N | SEG_J;
     case 'I':
       return SEG_A | SEG_D | SEG_G | SEG_L;
     case 'J':
       return SEG_B | SEG_C | SEG_D | SEG_E;
     case 'K':
-      return SEG_E | SEG_F | SEG_G | SEG_J | SEG_K | SEG_M;
+      return SEG_F | SEG_E | SEG_N | SEG_H | SEG_K;
     case 'L':
       return SEG_D | SEG_E | SEG_F;
     case 'M':
-      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_H | SEG_K;
+      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_P | SEG_H;
     case 'N':
-      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_H | SEG_M;
+      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_P | SEG_K;
     case 'O':
       return SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F;
     case 'P':
-      return SEG_A | SEG_B | SEG_E | SEG_F | SEG_G | SEG_J;
+      return SEG_A | SEG_B | SEG_E | SEG_F | SEG_N | SEG_J;
     case 'R':
-      return SEG_A | SEG_B | SEG_E | SEG_F | SEG_G | SEG_J | SEG_K;
+      return SEG_A | SEG_B | SEG_E | SEG_F | SEG_N | SEG_J | SEG_K;
     case 'S':
-      return SEG_A | SEG_C | SEG_D | SEG_F | SEG_G | SEG_J;
+      return SEG_A | SEG_F | SEG_N | SEG_J | SEG_C | SEG_D;
     case 'T':
       return SEG_A | SEG_G | SEG_L;
     case 'U':
@@ -329,11 +326,11 @@ uint16_t charToMask(char rawChar)
     case 'V':
       return SEG_E | SEG_F | SEG_H | SEG_M;
     case 'W':
-      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_H | SEG_M;
+      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_P | SEG_M;
     case 'Y':
-      return SEG_B | SEG_F | SEG_G | SEG_J | SEG_L;
+      return SEG_P | SEG_H | SEG_L;
     case '-':
-      return SEG_G | SEG_J;
+      return SEG_N | SEG_J;
     default:
       return 0;
   }
