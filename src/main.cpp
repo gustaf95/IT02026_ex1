@@ -5,45 +5,10 @@
 #include <MsTimer2.h>
 #include "DHT.h"
 
-uint8_t NUM_PIXELS = 8;
-
-uint8_t neopixel_pin = 2;
 uint8_t trig_pin = 3;
 uint8_t echo_pin = 4;
-uint8_t dht11_pin = 5;
-uint8_t buzzer_pin = 6;
 uint8_t motor_pin = 7;
 uint8_t ldr_pin = A0;
-
-const uint8_t ROWS = 3;
-const uint8_t COLS = 3;
-
-uint8_t LCD_DEGREE_CHAR = 1;
-uint8_t LCD_BLOCK_CHAR = 2;
-
-uint32_t dhtReadIntervalMs = 2000;
-uint32_t digitOnMs = 1;
-uint32_t fndTestIntervalMs = 300;
-uint32_t mode1TestingMs = 3000;
-uint32_t mode1ResultMs = 3000;
-uint32_t mode2MoveStepMs = 2000;
-uint32_t mode2ArrivedMs = 1000;
-uint32_t mode2WaitMs = 2000;
-uint32_t mode2OpenMs = 1000;
-uint32_t mode2CompleteMs = 1000;
-uint32_t mode2WarningIntervalMs = 500;
-uint32_t mode3ResultMs = 1500;
-uint32_t mode3LcdFillStepMs = 40;
-uint32_t mode3NeoStepMs = 500;
-uint32_t mode3BuzzerStepMs = 500;
-uint32_t blinkIntervalMs = 500;
-
-uint16_t BEEP_MODE_SELECT_FREQ = 1000;
-uint32_t BEEP_MODE_SELECT_MS = 100;
-uint16_t BEEP_MODE2_FREQ = 2000;
-uint32_t BEEP_MODE2_MS = 50;
-uint16_t BEEP_MODE3_FREQ = 1000;
-uint32_t BEEP_MODE3_MS = 100;
 
 
 #define MODE_INITIAL  0
@@ -82,8 +47,8 @@ uint8_t mode1Stage  = MODE1_STAGE_SCAN;
 uint8_t mode2State  = MODE2_IDLE;
 uint8_t mode3State  = MODE3_MENU;
 
-int currentTemperature = 0;
-int currentHumidity = 0;
+int currentTemperature = 27;
+int currentHumidity = 80;
 uint32_t lastDhtReadMs = 0;
 
 bool mode1Paused = false;
@@ -111,6 +76,9 @@ int mode3StartTemperature = 0;
 int mode3StartHumidity = 0;
 
 // ─── LCD ───────────────────────────────────────────────────────────────────
+uint8_t LCD_DEGREE_CHAR = 1;
+uint8_t LCD_BLOCK_CHAR = 2;
+
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 char lcdCache[4][20 + 1] = {{0,},};
 uint8_t degreeCharBitmap[8] = {
@@ -167,18 +135,18 @@ void showLcdLines(const char *line0, const char *line1, const char *line2, const
 }
 
 // ─── DHT / 센서 ────────────────────────────────────────────────────────────
+uint8_t dht11_pin = 5;
+uint32_t dhtReadIntervalMs = 2000;
+
 DHT dht(dht11_pin, DHT11);
 
-void updateSensorValues(uint32_t now, bool force)
+void updateSensorValues(uint32_t now)
 {
-  if (!force && now - lastDhtReadMs < dhtReadIntervalMs) {
-    return;
+  if (now - lastDhtReadMs > dhtReadIntervalMs) {  
+    currentHumidity = dht.readHumidity();
+    currentTemperature = dht.readTemperature();
+    lastDhtReadMs = now;
   }
-
-  currentHumidity = (int)dht.readHumidity(force);
-  currentTemperature = (int)dht.readTemperature(false, force);
-
-  lastDhtReadMs = now;
 }
 
 void buildTemperatureHumidityLine(char *out)
@@ -187,6 +155,9 @@ void buildTemperatureHumidityLine(char *out)
 }
 
 // ─── FND ───────────────────────────────────────────────────────────────────
+uint32_t digitOnMs = 1;
+uint32_t fndTestIntervalMs = 300;
+
 uint8_t seg_pins1[14] = {15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 27, 28, 29, 30};
 uint8_t seg_pins2[14] = {33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46};
 uint8_t digit_pins[4] = {31, 32, 47, 48};
@@ -278,6 +249,9 @@ void fndISR()
   digitalWrite(digit_pins[phase + 2], HIGH);
 }
 // ─── keypads ───────────────────────────────────────────────────────────────
+const uint8_t ROWS = 3;
+const uint8_t COLS = 3;
+
 char hexaKeys[ROWS][COLS] = {
   {'1', '2', '3'},
   {'4', '5', '6'},
@@ -290,8 +264,19 @@ uint8_t colPins[COLS] = {11, 12, 13};
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 
 // ─── Buzzer ───────────────────────────────────────────────────────────────
+uint8_t buzzer_pin = 6;
+
+uint16_t BEEP_MODE_SELECT_FREQ = 1000;
+uint32_t BEEP_MODE_SELECT_MS = 100;
+uint16_t BEEP_MODE2_FREQ = 2000;
+uint32_t BEEP_MODE2_MS = 50;
+uint16_t BEEP_MODE3_FREQ = 1000;
+uint32_t BEEP_MODE3_MS = 100;
 
 // ─── NeoPixel ──────────────────────────────────────────────────────────────
+uint8_t neopixel_pin = 2;
+uint8_t NUM_PIXELS = 8;
+
 Adafruit_NeoPixel pixels(NUM_PIXELS, neopixel_pin, NEO_GRB + NEO_KHZ800);
 
 uint32_t COLOR_BLUE = 0x0000FF;
@@ -348,6 +333,9 @@ void updateInitialMode()
 }
 
 // ─── Mode 1 (FND 핀 테스트) ────────────────────────────────────────────────
+uint32_t mode1TestingMs = 3000;
+uint32_t mode1ResultMs = 3000;
+
 
 void resetMode1State()
 {
@@ -457,6 +445,14 @@ void updateMode1(uint32_t now)
 }
 
 // ─── Mode 2 (엘리베이터) ───────────────────────────────────────────────────
+uint32_t mode2MoveStepMs = 2000;
+uint32_t mode2ArrivedMs = 1000;
+uint32_t mode2WaitMs = 2000;
+uint32_t mode2OpenMs = 1000;
+uint32_t mode2CompleteMs = 1000;
+uint32_t mode2WarningIntervalMs = 500;
+uint32_t blinkIntervalMs = 500;
+
 
 const char *mode2ModeLabel()
 {
@@ -661,6 +657,11 @@ void updateMode2(uint32_t now)
 }
 
 // ─── Mode 3 (관리자 모드) ──────────────────────────────────────────────────
+uint32_t mode3ResultMs = 1500;
+uint32_t mode3LcdFillStepMs = 40;
+uint32_t mode3NeoStepMs = 500;
+uint32_t mode3BuzzerStepMs = 500;
+
 
 void printMode3MenuToSerial()
 {
@@ -728,7 +729,7 @@ void startMode3LcdTest(uint32_t now)
 
 void startMode3DhtTest(uint32_t now)
 {
-  updateSensorValues(now, true);
+  updateSensorValues(now);
   mode3State = MODE3_DHT_TEST;
   mode3StateStartedMs = now;
   mode3LastStepMs = now;
@@ -1108,7 +1109,7 @@ void setup()
   delay(500);
   noTone(buzzer_pin);
 
-  updateSensorValues(millis(), true);
+  updateSensorValues(millis());
   resetMode1State();
   enterInitialScreen();
 
@@ -1120,7 +1121,7 @@ void loop()
 {
   uint32_t now = millis();
 
-  updateSensorValues(now, false);
+  updateSensorValues(now);
   handleMode3Serial(now);
 
   char key = customKeypad.getKey();
