@@ -51,13 +51,6 @@ int currentTemperature = 27;
 int currentHumidity = 80;
 uint32_t lastDhtReadMs = 0;
 
-bool mode1Paused = false;
-uint8_t mode1DigitIndex = 0;
-uint8_t mode1SegmentIndex = 0;
-uint32_t mode1LastStepMs = 0;
-uint32_t mode1StageStartedMs = 0;
-uint32_t mode1PausedElapsedMs = 0;
-
 bool mode2Initialized = false;
 bool mode2Paused = false;
 uint8_t mode2CurrentFloor = 1;
@@ -156,7 +149,6 @@ void buildTemperatureHumidityLine(char *out)
 
 // ─── FND ───────────────────────────────────────────────────────────────────
 uint32_t digitOnMs = 1;
-uint32_t fndTestIntervalMs = 300;
 
 uint8_t seg_pins1[14] = {15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 27, 28, 29, 30};
 uint8_t seg_pins2[14] = {33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46};
@@ -333,75 +325,25 @@ void updateInitialMode()
 }
 
 // ─── Mode 1 (FND 핀 테스트) ────────────────────────────────────────────────
-uint32_t mode1TestingMs = 3000;
-uint32_t mode1ResultMs = 3000;
-
-
-void resetMode1State()
-{
-  mode1Stage = MODE1_STAGE_SCAN;
-  mode1DigitIndex = 0;
-  mode1SegmentIndex = 0;
-  mode1LastStepMs = millis();
-  mode1StageStartedMs = millis();
-  mode1PausedElapsedMs = 0;
-  mode1Paused = false;
-}
-
-
-void beginMode1(uint32_t now)
-{
-  currentMode = MODE_1;
-  if (mode1Paused) {
-    mode1Paused = false;
-    if (mode1Stage == MODE1_STAGE_SCAN) {
-      mode1LastStepMs = now - mode1PausedElapsedMs;
-    } else {
-      mode1StageStartedMs = now - mode1PausedElapsedMs;
-    }
-    return;
-  }
-
-  resetMode1State();
-  mode1LastStepMs = now;
-  mode1StageStartedMs = now;
-}
-
-void pauseMode1(uint32_t now)
-{
-  mode1Paused = true;
-  if (mode1Stage == MODE1_STAGE_SCAN) {
-    mode1PausedElapsedMs = now - mode1LastStepMs;
-  } else {
-    mode1PausedElapsedMs = now - mode1StageStartedMs;
-  }
-  enterInitialScreen();
-}
+uint8_t mode1Step = 0;    //현재 몇 번째 핀을 테스트 중인지. step / 14 → 자릿수. step % 14 → segment
+uint32_t fndTestIntervalMs = 300;
+uint32_t mode1LastStepMs = 0;     //마지막으로 스텝이 바뀐 시각
+uint32_t mode1StageStartedMs = 0;   //현재 스테이지(TESTING 또는 RESULT)가 시작된 시각.  TESTING/RESULT 단계의 타이머
 
 void showMode1ActiveScreen()
 {
+  uint8_t digit   = mode1Step / 14;
+  uint8_t segment = mode1Step % 14;
   char line1[20 + 1];
   char line2[20 + 1];
 
-  sprintf(line1, "CHECK DIGIT: F%u", mode1DigitIndex + 1);
-  uint8_t *pins = (mode1DigitIndex < 2) ? seg_pins1 : seg_pins2;
-  sprintf(line2, "CHECK PORT: IO%02u", pins[mode1SegmentIndex]);
+  sprintf(line1, "CHECK DIGIT: F%u", digit + 1);
+  uint8_t *pins = (digit < 2) ? seg_pins1 : seg_pins2;
+  sprintf(line2, "CHECK PORT: IO%02u", pins[segment]);
 
   showLcdLines("PIN TEST: ACTIVE", line1, line2, "");
   clearFndMasks();
-  fndMasks[mode1DigitIndex] = fndPinTestSequence[mode1SegmentIndex];
-}
-
-void showMode1TestingScreen()
-{
-  showLcdLines("PIN TESTING......", "", "", "");
-  setFndChar(CHAR_T_MASK, CHAR_E_MASK, CHAR_S_MASK, CHAR_T_MASK);
-}
-
-void showMode1ResultScreen()
-{
-  showLcdLines("PIN TEST COMPLETED", "STATUS: DONE", "RESULT: OK", "");
-  setFndChar(CHAR_BLANK_MASK, CHAR_O_MASK, CHAR_K_MASK, CHAR_BLANK_MASK);
+  fndMasks[digit] = fndPinTestSequence[segment];
 }
 
 void updateMode1(uint32_t now)
@@ -411,33 +353,35 @@ void updateMode1(uint32_t now)
       showMode1ActiveScreen();
       if (now - mode1LastStepMs >= fndTestIntervalMs) {
         mode1LastStepMs = now;
-        if (mode1DigitIndex == 3 && mode1SegmentIndex == (fndPinTestSequenceLength - 1)) {
+        if (mode1Step == 55) {
           mode1Stage = MODE1_STAGE_TESTING;
           mode1StageStartedMs = now;
         } else {
-          ++mode1SegmentIndex;
-          if (mode1SegmentIndex >= fndPinTestSequenceLength) {
-            mode1SegmentIndex = 0;
-            ++mode1DigitIndex;
-          }
+          mode1Step++;
         }
         clearFndMasks();
-        fndMasks[mode1DigitIndex] = fndPinTestSequence[mode1SegmentIndex];
+        fndMasks[mode1Step / 14] = fndPinTestSequence[mode1Step % 14];
       }
       break;
 
     case MODE1_STAGE_TESTING:
-      showMode1TestingScreen();
-      if (now - mode1StageStartedMs >= mode1TestingMs) {
+      //show Mode1 Testing Screen
+      showLcdLines("PIN TESTING......", "", "", "");
+      setFndChar(CHAR_T_MASK, CHAR_E_MASK, CHAR_S_MASK, CHAR_T_MASK);
+      if (now - mode1StageStartedMs >= 3000) {
         mode1Stage = MODE1_STAGE_RESULT;
         mode1StageStartedMs = now;
       }
       break;
 
     case MODE1_STAGE_RESULT:
-      showMode1ResultScreen();
-      if (now - mode1StageStartedMs >= mode1ResultMs) {
-        resetMode1State();
+      //show Mode1 Result Screen
+      showLcdLines("PIN TEST COMPLETED", "STATUS: DONE", "RESULT: OK", "");
+      setFndChar(CHAR_BLANK_MASK, CHAR_O_MASK, CHAR_K_MASK, CHAR_BLANK_MASK);
+      if (now - mode1StageStartedMs >= 3000) {
+        // Reset Mode1 State
+        mode1Stage = MODE1_STAGE_SCAN;
+        mode1Step = 0;
         enterInitialScreen();
       }
       break;
@@ -1027,7 +971,9 @@ void handleButtonPress(char key, uint32_t now)
     case MODE_INITIAL:
       if (key == '1') {
         tone(buzzer_pin, BEEP_MODE_SELECT_FREQ, BEEP_MODE_SELECT_MS);
-        beginMode1(now);
+        // begin Mode1
+        currentMode = MODE_1;
+        mode1LastStepMs = now;
       } else if (key == '2') {
         tone(buzzer_pin, BEEP_MODE_SELECT_FREQ, BEEP_MODE_SELECT_MS);
         beginMode2(now);
@@ -1040,7 +986,8 @@ void handleButtonPress(char key, uint32_t now)
     case MODE_1:
       if (key == '9') {
         tone(buzzer_pin, BEEP_MODE_SELECT_FREQ, BEEP_MODE_SELECT_MS);
-        pauseMode1(now);
+        //pause Mode1
+        enterInitialScreen();
       }
       break;
 
@@ -1110,7 +1057,9 @@ void setup()
   noTone(buzzer_pin);
 
   updateSensorValues(millis());
-  resetMode1State();
+  // Reset Mode1 State
+  mode1Stage = MODE1_STAGE_SCAN;
+  mode1Step = 0;
   enterInitialScreen();
 
   MsTimer2::set(digitOnMs, fndISR);
