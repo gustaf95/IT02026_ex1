@@ -337,9 +337,9 @@ void showMode1ActiveScreen()
   char line1[20 + 1];
   char line2[20 + 1];
 
-  sprintf(line1, "CHECK DIGIT: F%u", digit + 1);
+  sprintf(line1, "CHECK DIGIT: F%d", digit + 1);
   uint8_t *pins = (digit < 2) ? seg_pins1 : seg_pins2;
-  sprintf(line2, "CHECK PORT: IO%02u", pins[segment]);
+  sprintf(line2, "CHECK PORT: IO%02d", pins[segment]);
 
   showLcdLines("PIN TEST: ACTIVE", line1, line2, "");
   clearFndMasks();
@@ -353,7 +353,7 @@ void updateMode1(uint32_t now)
       showMode1ActiveScreen();
       if (now - mode1LastStepMs >= fndTestIntervalMs) {
         mode1LastStepMs = now;
-        if (mode1Step == 55) {
+        if (mode1Step == 4*14-1) {
           mode1Stage = MODE1_STAGE_TESTING;
           mode1StageStartedMs = now;
         } else {
@@ -478,7 +478,7 @@ void showMode2Lcd()
   char line2[20 + 1];
   char line3[20 + 1];
 
-  sprintf(line1, "ELEV:%uF", mode2CurrentFloor);
+  sprintf(line1, "ELEV:%dF", mode2CurrentFloor);
   sprintf(line2, "MODE:%-4s DOOR:%-5s", mode2ModeLabel(), mode2DoorLabel());
   buildTemperatureHumidityLine(line3);
 
@@ -1095,6 +1095,4 @@ void loop()
 
   updateNeoPixelsForCurrentMode(now);
 }
-
-
 
