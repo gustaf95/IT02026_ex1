@@ -289,7 +289,7 @@ uint16_t charToMask(char rawChar)
     case 'C':
       return SEG_A | SEG_D | SEG_E | SEG_F;
     case 'D':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F;
+      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_G | SEG_L;
     case 'E':
       return SEG_A | SEG_D | SEG_E | SEG_F | SEG_N | SEG_J;
     case 'F':
