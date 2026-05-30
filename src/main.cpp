@@ -1,174 +1,90 @@
-#include <Arduino.h>
-#include <Wire.h>
+﻿#include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 #include <Adafruit_NeoPixel.h>
 #include <MsTimer2.h>
-#include <ctype.h>
-#include <math.h>
 #include "DHT.h"
 
-constexpr uint8_t LCD_COLUMNS = 20;
-constexpr uint8_t LCD_ROWS = 4;
-constexpr uint8_t NUM_PIXELS = 8;
+uint8_t NUM_PIXELS = 8;
 
-constexpr uint8_t neopixel_pin = 2;
-constexpr uint8_t trig_pin = 3;
-constexpr uint8_t echo_pin = 4;
-constexpr uint8_t dht11_pin = 5;
-constexpr uint8_t buzzer_pin = 6;
-constexpr uint8_t motor_pin = 7;
-constexpr uint8_t ldr_pin = A0;
+uint8_t neopixel_pin = 2;
+uint8_t trig_pin = 3;
+uint8_t echo_pin = 4;
+uint8_t dht11_pin = 5;
+uint8_t buzzer_pin = 6;
+uint8_t motor_pin = 7;
+uint8_t ldr_pin = A0;
 
-constexpr uint8_t ROWS = 3;
-constexpr uint8_t COLS = 3;
+const uint8_t ROWS = 3;
+const uint8_t COLS = 3;
 
-constexpr uint8_t LCD_DEGREE_CHAR = 1;
-constexpr uint8_t LCD_BLOCK_CHAR = 2;
+uint8_t LCD_DEGREE_CHAR = 1;
+uint8_t LCD_BLOCK_CHAR = 2;
 
-constexpr uint32_t dhtReadIntervalMs = 2000;
-constexpr uint32_t digitOnMs = 1;
-constexpr uint32_t fndTestIntervalMs = 300;
-constexpr uint32_t mode1TestingMs = 3000;
-constexpr uint32_t mode1ResultMs = 3000;
-constexpr uint32_t mode2MoveStepMs = 2000;
-constexpr uint32_t mode2ArrivedMs = 1000;
-constexpr uint32_t mode2WaitMs = 2000;
-constexpr uint32_t mode2OpenMs = 1000;
-constexpr uint32_t mode2CompleteMs = 1000;
-constexpr uint32_t mode2WarningIntervalMs = 500;
-constexpr uint32_t mode3ResultMs = 1500;
-constexpr uint32_t mode3LcdFillStepMs = 40;
-constexpr uint32_t mode3NeoStepMs = 500;
-constexpr uint32_t mode3BuzzerStepMs = 500;
-constexpr uint32_t blinkIntervalMs = 500;
+uint32_t dhtReadIntervalMs = 2000;
+uint32_t digitOnMs = 1;
+uint32_t fndTestIntervalMs = 300;
+uint32_t mode1TestingMs = 3000;
+uint32_t mode1ResultMs = 3000;
+uint32_t mode2MoveStepMs = 2000;
+uint32_t mode2ArrivedMs = 1000;
+uint32_t mode2WaitMs = 2000;
+uint32_t mode2OpenMs = 1000;
+uint32_t mode2CompleteMs = 1000;
+uint32_t mode2WarningIntervalMs = 500;
+uint32_t mode3ResultMs = 1500;
+uint32_t mode3LcdFillStepMs = 40;
+uint32_t mode3NeoStepMs = 500;
+uint32_t mode3BuzzerStepMs = 500;
+uint32_t blinkIntervalMs = 500;
 
-constexpr uint16_t BEEP_MODE_SELECT_FREQ = 1000;
-constexpr uint32_t BEEP_MODE_SELECT_MS = 100;
-constexpr uint16_t BEEP_MODE2_FREQ = 2000;
-constexpr uint32_t BEEP_MODE2_MS = 50;
-constexpr uint16_t BEEP_MODE3_FREQ = 1000;
-constexpr uint32_t BEEP_MODE3_MS = 100;
+uint16_t BEEP_MODE_SELECT_FREQ = 1000;
+uint32_t BEEP_MODE_SELECT_MS = 100;
+uint16_t BEEP_MODE2_FREQ = 2000;
+uint32_t BEEP_MODE2_MS = 50;
+uint16_t BEEP_MODE3_FREQ = 1000;
+uint32_t BEEP_MODE3_MS = 100;
 
-constexpr uint32_t COLOR_BLUE = 0x0000FF;
-constexpr uint32_t COLOR_RED = 0xFF0000;
-constexpr uint32_t COLOR_GREEN = 0x00FF00;
-constexpr uint32_t COLOR_ORANGE = 0xFFA500;
-constexpr uint32_t COLOR_PINK = 0xFF1493;
-constexpr uint32_t COLOR_OFF = 0x000000;
 
-constexpr uint8_t seg_pins1[14] = {15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 27, 28, 29, 30};
-constexpr uint8_t seg_pins2[14] = {33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46};
-constexpr uint8_t digit_pins[4] = {31, 32, 47, 48};
+#define MODE_INITIAL  0
+#define MODE_1        1
+#define MODE_2        2
+#define MODE_3        3
 
-char hexaKeys[ROWS][COLS] = {
-  {'1', '2', '3'},
-  {'4', '5', '6'},
-  {'7', '8', '9'}
-};
+#define MODE1_STAGE_SCAN     0
+#define MODE1_STAGE_TESTING  1
+#define MODE1_STAGE_RESULT   2
 
-uint8_t rowPins[ROWS] = {8, 9, 10};
-uint8_t colPins[COLS] = {11, 12, 13};
+#define MODE2_IDLE         0
+#define MODE2_MOVING_UP    1
+#define MODE2_MOVING_DOWN  2
+#define MODE2_ARRIVED      3
+#define MODE2_WAIT_OPEN    4
+#define MODE2_OPEN         5
+#define MODE2_WAIT_CLOSE   6
+#define MODE2_COMPLETE     7
+#define MODE2_WARNING      8
 
-constexpr uint16_t SEG_A = 1 << 0;
-constexpr uint16_t SEG_B = 1 << 1;
-constexpr uint16_t SEG_C = 1 << 2;
-constexpr uint16_t SEG_D = 1 << 3;
-constexpr uint16_t SEG_E = 1 << 4;
-constexpr uint16_t SEG_F = 1 << 5;
-constexpr uint16_t SEG_G = 1 << 6;
-constexpr uint16_t SEG_H = 1 << 7;
-constexpr uint16_t SEG_J = 1 << 8;
-constexpr uint16_t SEG_K = 1 << 9;
-constexpr uint16_t SEG_L = 1 << 10;
-constexpr uint16_t SEG_M = 1 << 11;
-constexpr uint16_t SEG_N = 1 << 12;
-constexpr uint16_t SEG_P = 1 << 13;
+#define MODE3_MENU          0
+#define MODE3_LCD_TEST      1
+#define MODE3_LCD_RESULT    2
+#define MODE3_DHT_TEST      3
+#define MODE3_DHT_RESULT    4
+#define MODE3_NEO_TEST      5
+#define MODE3_NEO_RESULT    6
+#define MODE3_KEYPAD_TEST   7
+#define MODE3_KEYPAD_RESULT 8
+#define MODE3_BUZZER_TEST   9
+#define MODE3_BUZZER_RESULT 10
 
-constexpr uint16_t DOOR_CLOSED_MASK = SEG_A | SEG_G | SEG_L | SEG_D;
-constexpr uint16_t DOOR_OPEN_MASK = SEG_F | SEG_E | SEG_B | SEG_C;
+uint8_t currentMode = MODE_INITIAL;
+uint8_t mode1Stage  = MODE1_STAGE_SCAN;
+uint8_t mode2State  = MODE2_IDLE;
+uint8_t mode3State  = MODE3_MENU;
 
-const uint16_t fndPinTestSequence[14] = { SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F, 
-                                   SEG_G, SEG_H, SEG_J, SEG_K, SEG_L, SEG_M, SEG_N, SEG_P};
-constexpr size_t fndPinTestSequenceLength = sizeof(fndPinTestSequence) / sizeof(fndPinTestSequence[0]);
-
-const uint8_t degreeCharBitmap[8] = {
-  B00110,
-  B01001,
-  B01001,
-  B00110,
-  B00000,
-  B00000,
-  B00000,
-  B00000
-};
-
-const uint8_t blockCharBitmap[8] = {
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111,
-  B11111
-};
-
-enum AppMode : uint8_t {
-  MODE_INITIAL = 0,
-  MODE_1 = 1,
-  MODE_2 = 2,
-  MODE_3 = 3
-};
-
-enum Mode1Stage : uint8_t {
-  MODE1_STAGE_SCAN = 0,
-  MODE1_STAGE_TESTING = 1,
-  MODE1_STAGE_RESULT = 2
-};
-
-enum Mode2State : uint8_t {
-  MODE2_IDLE = 0,
-  MODE2_MOVING_UP = 1,
-  MODE2_MOVING_DOWN = 2,
-  MODE2_ARRIVED = 3,
-  MODE2_WAIT_OPEN = 4,
-  MODE2_OPEN = 5,
-  MODE2_WAIT_CLOSE = 6,
-  MODE2_COMPLETE = 7,
-  MODE2_WARNING = 8
-};
-
-enum Mode3State : uint8_t {
-  MODE3_MENU = 0,
-  MODE3_LCD_TEST = 1,
-  MODE3_LCD_RESULT = 2,
-  MODE3_DHT_TEST = 3,
-  MODE3_DHT_RESULT = 4,
-  MODE3_NEO_TEST = 5,
-  MODE3_NEO_RESULT = 6,
-  MODE3_KEYPAD_TEST = 7,
-  MODE3_KEYPAD_RESULT = 8,
-  MODE3_BUZZER_TEST = 9,
-  MODE3_BUZZER_RESULT = 10
-};
-
-DHT dht(dht11_pin, DHT11);
-LiquidCrystal_I2C lcd(0x27, LCD_COLUMNS, LCD_ROWS);
-Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
-Adafruit_NeoPixel pixels(NUM_PIXELS, neopixel_pin, NEO_GRB + NEO_KHZ800);
-
-AppMode currentMode = MODE_INITIAL;
-Mode1Stage mode1Stage = MODE1_STAGE_SCAN;
-Mode2State mode2State = MODE2_IDLE;
-Mode3State mode3State = MODE3_MENU;
-
-float currentTemperature = NAN;
-float currentHumidity = NAN;
+int currentTemperature = 0;
+int currentHumidity = 0;
 uint32_t lastDhtReadMs = 0;
-
-char lcdCache[LCD_ROWS][LCD_COLUMNS + 1] = {{0}};
-volatile uint16_t currentDisplayMasks[4] = {0, 0, 0, 0};
 
 bool mode1Paused = false;
 uint8_t mode1DigitIndex = 0;
@@ -194,9 +110,34 @@ uint8_t mode2LastWarningPhase = 0;
 int mode3StartTemperature = 0;
 int mode3StartHumidity = 0;
 
+// ─── LCD ───────────────────────────────────────────────────────────────────
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+char lcdCache[4][20 + 1] = {{0,},};
+uint8_t degreeCharBitmap[8] = {
+  B00110,
+  B01001,
+  B01001,
+  B00110,
+  B00000,
+  B00000,
+  B00000,
+  B00000
+};
+
+uint8_t blockCharBitmap[8] = {
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111
+};
+
 void resetLcdCache()
 {
-  for (uint8_t row = 0; row < LCD_ROWS; ++row) {
+  for (uint8_t row = 0; row < 4; row++) {
     lcdCache[row][0] = '\0';
   }
 }
@@ -206,25 +147,14 @@ void clearLcdDirect()
   lcd.clear();
   resetLcdCache();
 }
-
 void writeLcdLine(uint8_t row, const char *text)
 {
-  char padded[LCD_COLUMNS + 1];
-  for (uint8_t i = 0; i < LCD_COLUMNS; ++i) {
-    padded[i] = ' ';
-  }
-  padded[LCD_COLUMNS] = '\0';
-
-  if (text != nullptr) {
-    for (uint8_t i = 0; i < LCD_COLUMNS && text[i] != '\0'; ++i) {
-      padded[i] = text[i];
-    }
-  }
-
-  if (strncmp(lcdCache[row], padded, LCD_COLUMNS) != 0) {
+  if (strcmp(lcdCache[row], text) != 0) {
     lcd.setCursor(0, row);
-    lcd.print(padded);
-    memcpy(lcdCache[row], padded, sizeof(padded));
+    lcd.print("                    ");
+    lcd.setCursor(0, row);
+    lcd.print(text);
+    strcpy(lcdCache[row], text);
   }
 }
 
@@ -236,169 +166,8 @@ void showLcdLines(const char *line0, const char *line1, const char *line2, const
   writeLcdLine(3, line3);
 }
 
-int roundSensorValue(float value)
-{
-  if (isnan(value)) {
-    return 0;
-  }
-
-  return static_cast<int>(value + (value >= 0.0f ? 0.5f : -0.5f));
-}
-
-void buildTemperatureHumidityLine(char *out)
-{
-  snprintf(
-    out,
-    LCD_COLUMNS + 1,
-    "TEMP:%2d%cC HUMI:%2d%%",
-    roundSensorValue(currentTemperature),
-    static_cast<char>(LCD_DEGREE_CHAR),
-    roundSensorValue(currentHumidity)
-  );
-}
-
-uint16_t charToMask(char rawChar)
-{
-  char c = static_cast<char>(toupper(static_cast<unsigned char>(rawChar)));
-
-  switch (c) {
-    case '0':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F;
-    case '1':
-      return SEG_B | SEG_C;
-    case '2':
-      return SEG_A | SEG_B | SEG_D | SEG_E | SEG_N | SEG_J;
-    case '3':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_N | SEG_J;
-    case '4':
-      return SEG_B | SEG_C | SEG_F | SEG_N | SEG_J;
-    case '5':
-      return SEG_A | SEG_C | SEG_D | SEG_F | SEG_N | SEG_J;
-    case '6':
-      return SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_N | SEG_J;
-    case '7':
-      return SEG_A | SEG_B | SEG_C;
-    case '8':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F | SEG_N | SEG_J;
-    case '9':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_F | SEG_N | SEG_J;
-    case 'A':
-      return SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_N | SEG_J;
-    case 'B':
-      return SEG_C | SEG_D | SEG_E | SEG_F | SEG_J | SEG_L | SEG_N;
-    case 'C':
-      return SEG_A | SEG_D | SEG_E | SEG_F;
-    case 'D':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_G | SEG_L;
-    case 'E':
-      return SEG_A | SEG_D | SEG_E | SEG_F | SEG_N | SEG_J;
-    case 'F':
-      return SEG_A | SEG_E | SEG_F | SEG_N;
-    case 'G':
-      return SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_J | SEG_N;
-    case 'H':
-      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_N | SEG_J;
-    case 'I':
-      return SEG_A | SEG_D | SEG_G | SEG_L;
-    case 'J':
-      return SEG_B | SEG_C | SEG_D | SEG_E;
-    case 'K':
-      return SEG_F | SEG_E | SEG_N | SEG_H | SEG_K;
-    case 'L':
-      return SEG_D | SEG_E | SEG_F;
-    case 'M':
-      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_P | SEG_H;
-    case 'N':
-      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_P | SEG_K;
-    case 'O':
-      return SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F;
-    case 'P':
-      return SEG_A | SEG_B | SEG_E | SEG_F | SEG_N | SEG_J;
-    case 'R':
-      return SEG_A | SEG_B | SEG_E | SEG_F | SEG_N | SEG_J | SEG_K;
-    case 'S':
-      return SEG_A | SEG_F | SEG_N | SEG_J | SEG_C | SEG_D;
-    case 'T':
-      return SEG_A | SEG_G | SEG_L;
-    case 'U':
-      return SEG_B | SEG_C | SEG_D | SEG_E | SEG_F;
-    case 'V':
-      return SEG_E | SEG_F | SEG_H | SEG_M;
-    case 'W':
-      return SEG_B | SEG_C | SEG_E | SEG_F | SEG_P | SEG_M;
-    case 'Y':
-      return SEG_P | SEG_H | SEG_L;
-    case '-':
-      return SEG_N | SEG_J;
-    default:
-      return 0;
-  }
-}
-
-void clearDisplayMasks()
-{
-  for (uint8_t i = 0; i < 4; ++i) {
-    currentDisplayMasks[i] = 0;
-  }
-}
-
-void setFndText(const char *text)
-{
-  for (uint8_t i = 0; i < 4; ++i) {
-    char c = ' ';
-    if (text != nullptr && text[i] != '\0') {
-      c = text[i];
-    }
-    currentDisplayMasks[i] = charToMask(c);
-  }
-}
-
-void writeDigitSegments(uint8_t digit, uint16_t mask)
-{
-  const uint8_t *pins = (digit < 2) ? seg_pins1 : seg_pins2;
-  for (uint8_t i = 0; i < 14; ++i) {
-    digitalWrite(pins[i], ((mask>>i) & 0x1)? LOW : HIGH);
-  }
-}
-
-void displayISR()
-{
-  static uint8_t phase = 0;
-  digitalWrite(digit_pins[phase], LOW);
-  digitalWrite(digit_pins[phase + 2], LOW);
-  phase ^= 1;
-  writeDigitSegments(phase, (uint16_t)currentDisplayMasks[phase]);
-  writeDigitSegments(phase + 2, (uint16_t)currentDisplayMasks[phase + 2]);
-  digitalWrite(digit_pins[phase], HIGH);
-  digitalWrite(digit_pins[phase + 2], HIGH);
-}
-
-void setAllPixels(uint32_t color)
-{
-  for (uint8_t i = 0; i < NUM_PIXELS; ++i) {
-    pixels.setPixelColor(i, color);
-  }
-  pixels.show();
-}
-
-void clearPixels()
-{
-  setAllPixels(COLOR_OFF);
-}
-
-void showTemperatureHumidityPixels()
-{
-  uint32_t tempColor = (roundSensorValue(currentTemperature) >= 24) ? COLOR_RED : COLOR_BLUE;
-  uint32_t humidityColor = (roundSensorValue(currentHumidity) > 50) ? COLOR_ORANGE : COLOR_GREEN;
-
-  for (uint8_t i = 0; i < 4; ++i) {
-    pixels.setPixelColor(i, tempColor);
-  }
-  for (uint8_t i = 4; i < NUM_PIXELS; ++i) {
-    pixels.setPixelColor(i, humidityColor);
-  }
-  pixels.show();
-}
+// ─── DHT / 센서 ────────────────────────────────────────────────────────────
+DHT dht(dht11_pin, DHT11);
 
 void updateSensorValues(uint32_t now, bool force)
 {
@@ -406,18 +175,155 @@ void updateSensorValues(uint32_t now, bool force)
     return;
   }
 
-  float humidity = dht.readHumidity(force);
-  float temperature = dht.readTemperature(false, force);
-
-  if (!isnan(humidity)) {
-    currentHumidity = humidity;
-  }
-  if (!isnan(temperature)) {
-    currentTemperature = temperature;
-  }
+  currentHumidity = (int)dht.readHumidity(force);
+  currentTemperature = (int)dht.readTemperature(false, force);
 
   lastDhtReadMs = now;
 }
+
+void buildTemperatureHumidityLine(char *out)
+{
+  sprintf(out, "TEMP:%2d%cC HUMI:%2d%%", currentTemperature, LCD_DEGREE_CHAR, currentHumidity);
+}
+
+// ─── FND ───────────────────────────────────────────────────────────────────
+uint8_t seg_pins1[14] = {15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 27, 28, 29, 30};
+uint8_t seg_pins2[14] = {33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46};
+uint8_t digit_pins[4] = {31, 32, 47, 48};
+
+uint16_t SEG_A = 1 << 0;
+uint16_t SEG_B = 1 << 1;
+uint16_t SEG_C = 1 << 2;
+uint16_t SEG_D = 1 << 3;
+uint16_t SEG_E = 1 << 4;
+uint16_t SEG_F = 1 << 5;
+uint16_t SEG_G = 1 << 6;
+uint16_t SEG_H = 1 << 7;
+uint16_t SEG_J = 1 << 8;
+uint16_t SEG_K = 1 << 9;
+uint16_t SEG_L = 1 << 10;
+uint16_t SEG_M = 1 << 11;
+uint16_t SEG_N = 1 << 12;
+uint16_t SEG_P = 1 << 13;
+
+
+const uint16_t fndPinTestSequence[14] = { SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F,
+                                   SEG_G, SEG_H, SEG_J, SEG_K, SEG_L, SEG_M, SEG_N, SEG_P};
+size_t fndPinTestSequenceLength = 14;
+
+uint16_t CHAR_1_MASK = (SEG_B | SEG_C);
+uint16_t CHAR_2_MASK = (SEG_A | SEG_B | SEG_D | SEG_E | SEG_N | SEG_J);
+uint16_t CHAR_3_MASK = (SEG_A | SEG_B | SEG_C | SEG_D | SEG_N | SEG_J);
+uint16_t CHAR_4_MASK = (SEG_B | SEG_C | SEG_F | SEG_N | SEG_J);
+uint16_t CHAR_5_MASK = (SEG_A | SEG_C | SEG_D | SEG_F | SEG_N | SEG_J);
+uint16_t CHAR_A_MASK = (SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_N | SEG_J);
+uint16_t CHAR_D_MASK = (SEG_A | SEG_B | SEG_C | SEG_D | SEG_G | SEG_L);
+uint16_t CHAR_E_MASK = (SEG_A | SEG_D | SEG_E | SEG_F | SEG_N | SEG_J);
+uint16_t CHAR_F_MASK = (SEG_A | SEG_E | SEG_F | SEG_N);
+uint16_t CHAR_I_MASK = (SEG_A | SEG_D | SEG_G | SEG_L);
+uint16_t CHAR_K_MASK = (SEG_F | SEG_E | SEG_N | SEG_H | SEG_K);
+uint16_t CHAR_L_MASK = (SEG_D | SEG_E | SEG_F);
+uint16_t CHAR_M_MASK = (SEG_B | SEG_C | SEG_E | SEG_F | SEG_P | SEG_H);
+uint16_t CHAR_N_MASK = (SEG_B | SEG_C | SEG_E | SEG_F | SEG_P | SEG_K);
+uint16_t CHAR_O_MASK = (SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F);
+uint16_t CHAR_P_MASK = (SEG_A | SEG_B | SEG_E | SEG_F |SEG_N |SEG_J);
+uint16_t CHAR_S_MASK = (SEG_A | SEG_F | SEG_N | SEG_J | SEG_C | SEG_D);
+uint16_t CHAR_T_MASK = (SEG_A | SEG_G | SEG_L);
+uint16_t CHAR_U_MASK = (SEG_B | SEG_C | SEG_D | SEG_E | SEG_F);
+uint16_t CHAR_V_MASK = (SEG_E | SEG_F | SEG_H | SEG_M);
+uint16_t CHAR_ALL_MASK = 0x3FFF;
+uint16_t CHAR_BLANK_MASK = 0;
+
+uint16_t DOOR_CLOSED_MASK = SEG_A | SEG_G | SEG_L | SEG_D;
+uint16_t DOOR_OPEN_MASK = SEG_F | SEG_E | SEG_B | SEG_C;
+
+volatile uint16_t fndMasks[4] = {0, 0, 0, 0};
+
+uint16_t floorMasks[6] = {0, CHAR_1_MASK, CHAR_2_MASK, CHAR_3_MASK, CHAR_4_MASK, CHAR_5_MASK};
+
+
+void clearFndMasks()
+{
+  for (int i = 0; i < 4; ++i) {
+    fndMasks[i] = 0;
+  }
+}
+
+void setFndChar(uint16_t f1, uint16_t f2, uint16_t f3, uint16_t f4)
+{
+  fndMasks[0] = f1;
+  fndMasks[1] = f2;
+  fndMasks[2] = f3;
+  fndMasks[3] = f4;
+}
+
+
+void writeDigitSegments(uint8_t digit, uint16_t mask)
+{
+  uint8_t *pins = (digit < 2) ? seg_pins1 : seg_pins2;
+  for (int i = 0; i < 14; ++i) {
+    digitalWrite(pins[i], ((mask>>i) & 0x1)? LOW : HIGH);
+  }
+}
+
+void fndISR()
+{
+  static uint8_t phase = 0;
+  digitalWrite(digit_pins[phase], LOW);
+  digitalWrite(digit_pins[phase + 2], LOW);
+  phase ^= 1;
+  writeDigitSegments(phase, (uint16_t)fndMasks[phase]);
+  writeDigitSegments(phase + 2, (uint16_t)fndMasks[phase + 2]);
+  digitalWrite(digit_pins[phase], HIGH);
+  digitalWrite(digit_pins[phase + 2], HIGH);
+}
+// ─── keypads ───────────────────────────────────────────────────────────────
+char hexaKeys[ROWS][COLS] = {
+  {'1', '2', '3'},
+  {'4', '5', '6'},
+  {'7', '8', '9'}
+};
+
+uint8_t rowPins[ROWS] = {8, 9, 10};
+uint8_t colPins[COLS] = {11, 12, 13};
+
+Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
+
+// ─── Buzzer ───────────────────────────────────────────────────────────────
+
+// ─── NeoPixel ──────────────────────────────────────────────────────────────
+Adafruit_NeoPixel pixels(NUM_PIXELS, neopixel_pin, NEO_GRB + NEO_KHZ800);
+
+uint32_t COLOR_BLUE = 0x0000FF;
+uint32_t COLOR_RED = 0xFF0000;
+uint32_t COLOR_GREEN = 0x00FF00;
+uint32_t COLOR_ORANGE = 0xFFA500;
+uint32_t COLOR_PINK = 0xFF1493;
+uint32_t COLOR_OFF = 0x000000;
+
+void setAllPixels(uint32_t color)
+{
+  for (int i = 0; i < NUM_PIXELS; ++i) {
+    pixels.setPixelColor(i, color);
+  }
+  pixels.show();
+}
+
+void showTemperatureHumidityPixels()
+{
+  uint32_t tempColor = (currentTemperature >= 24) ? COLOR_RED : COLOR_BLUE;
+  uint32_t humidityColor = (currentHumidity >= 50) ? COLOR_ORANGE : COLOR_GREEN;
+
+  for (int i = 0; i < 4; ++i) {
+    pixels.setPixelColor(i, tempColor);
+  }
+  for (int i = 4; i < NUM_PIXELS; ++i) {
+    pixels.setPixelColor(i, humidityColor);
+  }
+  pixels.show();
+}
+
+// ─── 화면 / 탐색 ──────────────────────────────────────────────────────────
 
 void enterInitialScreen()
 {
@@ -430,6 +336,19 @@ void enterInitialScreen()
   );
 }
 
+void updateInitialMode()
+{
+  showLcdLines(
+    " ELEVATOR SYSTEM",
+    "  CIRCUIT DESIGN",
+    "  & PROGRAMMING",
+    "   2026.06.13"
+  );
+  setFndChar(CHAR_E_MASK, CHAR_L_MASK, CHAR_E_MASK, CHAR_V_MASK);
+}
+
+// ─── Mode 1 (FND 핀 테스트) ────────────────────────────────────────────────
+
 void resetMode1State()
 {
   mode1Stage = MODE1_STAGE_SCAN;
@@ -441,16 +360,6 @@ void resetMode1State()
   mode1Paused = false;
 }
 
-bool isMode1LastStep()
-{
-  return mode1DigitIndex == 3 && mode1SegmentIndex == (fndPinTestSequenceLength - 1);
-}
-
-uint8_t mode1CurrentPortNumber()
-{
-  const uint8_t *pins = (mode1DigitIndex < 2) ? seg_pins1 : seg_pins2;
-  return pins[mode1SegmentIndex];
-}
 
 void beginMode1(uint32_t now)
 {
@@ -483,37 +392,38 @@ void pauseMode1(uint32_t now)
 
 void showMode1ActiveScreen()
 {
-  char line1[LCD_COLUMNS + 1];
-  char line2[LCD_COLUMNS + 1];
+  char line1[20 + 1];
+  char line2[20 + 1];
 
-  snprintf(line1, sizeof(line1), "CHECK DIGIT: F%u", mode1DigitIndex + 1);
-  snprintf(line2, sizeof(line2), "CHECK PORT: IO%02u", mode1CurrentPortNumber());
+  sprintf(line1, "CHECK DIGIT: F%u", mode1DigitIndex + 1);
+  uint8_t *pins = (mode1DigitIndex < 2) ? seg_pins1 : seg_pins2;
+  sprintf(line2, "CHECK PORT: IO%02u", pins[mode1SegmentIndex]);
 
   showLcdLines("PIN TEST: ACTIVE", line1, line2, "");
-  clearDisplayMasks();
-  currentDisplayMasks[mode1DigitIndex] = fndPinTestSequence[mode1SegmentIndex];
+  clearFndMasks();
+  fndMasks[mode1DigitIndex] = fndPinTestSequence[mode1SegmentIndex];
 }
 
 void showMode1TestingScreen()
 {
   showLcdLines("PIN TESTING......", "", "", "");
-  setFndText("TEST");
+  setFndChar(CHAR_T_MASK, CHAR_E_MASK, CHAR_S_MASK, CHAR_T_MASK);
 }
 
 void showMode1ResultScreen()
 {
   showLcdLines("PIN TEST COMPLETED", "STATUS: DONE", "RESULT: OK", "");
-  setFndText(" OK ");
+  setFndChar(CHAR_BLANK_MASK, CHAR_O_MASK, CHAR_K_MASK, CHAR_BLANK_MASK);
 }
 
 void updateMode1(uint32_t now)
 {
   switch (mode1Stage) {
     case MODE1_STAGE_SCAN:
-      showMode1ActiveScreen();  // LCD 출력만 담당하도록 변경
+      showMode1ActiveScreen();
       if (now - mode1LastStepMs >= fndTestIntervalMs) {
         mode1LastStepMs = now;
-        if (isMode1LastStep()) {
+        if (mode1DigitIndex == 3 && mode1SegmentIndex == (fndPinTestSequenceLength - 1)) {
           mode1Stage = MODE1_STAGE_TESTING;
           mode1StageStartedMs = now;
         } else {
@@ -523,9 +433,8 @@ void updateMode1(uint32_t now)
             ++mode1DigitIndex;
           }
         }
-        // step이 바뀔 때만 mask 갱신
-        clearDisplayMasks();
-        currentDisplayMasks[mode1DigitIndex] = fndPinTestSequence[mode1SegmentIndex];
+        clearFndMasks();
+        fndMasks[mode1DigitIndex] = fndPinTestSequence[mode1SegmentIndex];
       }
       break;
 
@@ -546,6 +455,8 @@ void updateMode1(uint32_t now)
       break;
   }
 }
+
+// ─── Mode 2 (엘리베이터) ───────────────────────────────────────────────────
 
 const char *mode2ModeLabel()
 {
@@ -574,27 +485,27 @@ const char *mode2DoorLabel()
 
 void setMode2DoorMasks(bool showDoor, bool doorOpen)
 {
-  currentDisplayMasks[0] = showDoor ? (doorOpen ? DOOR_OPEN_MASK : DOOR_CLOSED_MASK) : 0;
-  currentDisplayMasks[1] = showDoor ? (doorOpen ? DOOR_OPEN_MASK : DOOR_CLOSED_MASK) : 0;
-  currentDisplayMasks[2] = charToMask(static_cast<char>('0' + mode2CurrentFloor));
-  currentDisplayMasks[3] = charToMask('F');
+  fndMasks[0] = showDoor ? (doorOpen ? DOOR_OPEN_MASK : DOOR_CLOSED_MASK) : 0;
+  fndMasks[1] = showDoor ? (doorOpen ? DOOR_OPEN_MASK : DOOR_CLOSED_MASK) : 0;
+  fndMasks[2] = floorMasks[mode2CurrentFloor];
+  fndMasks[3] = CHAR_F_MASK;
 }
 
 void updateMode2Fnd(uint32_t now)
 {
   if (mode2State == MODE2_MOVING_UP) {
-    currentDisplayMasks[0] = charToMask('U');
-    currentDisplayMasks[1] = charToMask('P');
-    currentDisplayMasks[2] = charToMask(static_cast<char>('0' + mode2CurrentFloor));
-    currentDisplayMasks[3] = charToMask('F');
+    fndMasks[0] = CHAR_U_MASK;
+    fndMasks[1] = CHAR_P_MASK;
+    fndMasks[2] = floorMasks[mode2CurrentFloor];
+    fndMasks[3] = CHAR_F_MASK;
     return;
   }
 
   if (mode2State == MODE2_MOVING_DOWN) {
-    currentDisplayMasks[0] = charToMask('D');
-    currentDisplayMasks[1] = charToMask('N');
-    currentDisplayMasks[2] = charToMask(static_cast<char>('0' + mode2CurrentFloor));
-    currentDisplayMasks[3] = charToMask('F');
+    fndMasks[0] = CHAR_D_MASK;
+    fndMasks[1] = CHAR_N_MASK;
+    fndMasks[2] = floorMasks[mode2CurrentFloor];
+    fndMasks[3] = CHAR_F_MASK;
     return;
   }
 
@@ -614,7 +525,7 @@ void updateMode2Fnd(uint32_t now)
   }
 
   if (mode2State == MODE2_WARNING && !showDoor) {
-    clearDisplayMasks();
+    clearFndMasks();
     return;
   }
 
@@ -623,12 +534,12 @@ void updateMode2Fnd(uint32_t now)
 
 void showMode2Lcd()
 {
-  char line1[LCD_COLUMNS + 1];
-  char line2[LCD_COLUMNS + 1];
-  char line3[LCD_COLUMNS + 1];
+  char line1[20 + 1];
+  char line2[20 + 1];
+  char line3[20 + 1];
 
-  snprintf(line1, sizeof(line1), "ELEV:%uF", mode2CurrentFloor);
-  snprintf(line2, sizeof(line2), "MODE:%-4s DOOR:%-5s", mode2ModeLabel(), mode2DoorLabel());
+  sprintf(line1, "ELEV:%uF", mode2CurrentFloor);
+  sprintf(line2, "MODE:%-4s DOOR:%-5s", mode2ModeLabel(), mode2DoorLabel());
   buildTemperatureHumidityLine(line3);
 
   showLcdLines("    ELEV SYSTEM", line1, line2, line3);
@@ -640,7 +551,7 @@ void updateMode2Pixels(uint32_t now)
     if (((now / blinkIntervalMs) % 2U) == 0U) {
       setAllPixels(COLOR_ORANGE);
     } else {
-      clearPixels();
+      setAllPixels(COLOR_OFF);
     }
     return;
   }
@@ -679,19 +590,9 @@ void pauseMode2(uint32_t now)
   enterInitialScreen();
 }
 
-bool mode2CanAcceptCall()
-{
-  return mode2State == MODE2_IDLE || mode2State == MODE2_COMPLETE || mode2State == MODE2_WARNING;
-}
-
-uint8_t buttonToFloor(char key)
-{
-  return static_cast<uint8_t>((key - '4') + 1);
-}
-
 void startMode2Call(uint8_t targetFloor, uint32_t now)
 {
-  if (!mode2CanAcceptCall()) {
+  if (mode2State != MODE2_IDLE && mode2State != MODE2_COMPLETE && mode2State != MODE2_WARNING) {
     return;
   }
 
@@ -710,7 +611,7 @@ void startMode2Call(uint8_t targetFloor, uint32_t now)
 void updateMode2(uint32_t now)
 {
   if (mode2State == MODE2_WARNING) {
-    uint8_t currentPhase = static_cast<uint8_t>((now - mode2StateStartedMs) / mode2WarningIntervalMs);
+    uint8_t currentPhase = (uint8_t)((now - mode2StateStartedMs) / mode2WarningIntervalMs);
     if (currentPhase != mode2LastWarningPhase) {
       mode2LastWarningPhase = currentPhase;
       if (currentPhase < 4 && (currentPhase % 2U) == 0U) {
@@ -759,19 +660,21 @@ void updateMode2(uint32_t now)
   updateMode2Fnd(now);
 }
 
+// ─── Mode 3 (관리자 모드) ──────────────────────────────────────────────────
+
 void printMode3MenuToSerial()
 {
-  Serial.println(F("[ 관리자 모드 ]"));
+  Serial.println("[ 관리자 모드 ]");
   Serial.println();
-  Serial.println(F("> 장치 리스트 (DEVICE LIST):"));
-  Serial.println(F("  1. LCD 전체 점등 테스트"));
-  Serial.println(F("  2. DHT11 온습도 동적 감지"));
-  Serial.println(F("  3. NeoPixel RGB 순자 점등"));
-  Serial.println(F("  4. 키패드 입력 스캔 테스트"));
-  Serial.println(F("  5. 부저 주파수 출력 테스트"));
-  Serial.println(F("모드 탈출은 키 '9'를 사용하십시오."));
-  Serial.println(F("------------------------------------------"));
-  Serial.print(F("명령어 입력 : [  ]"));
+  Serial.println("> 장치 리스트 (DEVICE LIST):");
+  Serial.println("  1. LCD 전체 점등 테스트");
+  Serial.println("  2. DHT11 온습도 동적 감지");
+  Serial.println("  3. NeoPixel RGB 순자 점등");
+  Serial.println("  4. 키패드 입력 스캔 테스트");
+  Serial.println("  5. 부저 주파수 출력 테스트");
+  Serial.println("모드 탈출은 키 '9'를 사용하십시오.");
+  Serial.println("------------------------------------------");
+  Serial.print("명령어 입력 : [  ]");
 }
 
 void returnToMode3Menu()
@@ -786,11 +689,6 @@ void returnToMode3Menu()
   noTone(buzzer_pin);
 }
 
-void exitMode3ToInitial()
-{
-  returnToMode3Menu();
-  enterInitialScreen();
-}
 
 void beginMode3(uint32_t now)
 {
@@ -802,8 +700,8 @@ void beginMode3(uint32_t now)
 
 void showMode3Menu()
 {
-  char line3[LCD_COLUMNS + 1];
-  snprintf(line3, sizeof(line3), "SELECT NUMBER:[%c]", mode3PendingCommand == '\0' ? ' ' : mode3PendingCommand);
+  char line3[20 + 1];
+  sprintf(line3, "SELECT NUMBER:[%c]", mode3PendingCommand == '\0' ? ' ' : mode3PendingCommand);
 
   showLcdLines(
     "    DEVICE TESTING",
@@ -811,7 +709,7 @@ void showMode3Menu()
     "4:KEY 5:BUZ 9:EXIT",
     line3
   );
-  setFndText("ADMI");
+  setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
 
   if (!mode3MenuPrinted) {
     printMode3MenuToSerial();
@@ -834,12 +732,12 @@ void startMode3DhtTest(uint32_t now)
   mode3State = MODE3_DHT_TEST;
   mode3StateStartedMs = now;
   mode3LastStepMs = now;
-  mode3StartTemperature = roundSensorValue(currentTemperature);
-  mode3StartHumidity = roundSensorValue(currentHumidity);
-  Serial.print(F("진행 시간 : 0s | T:"));
-  Serial.print(currentTemperature, 1);
-  Serial.print(F(" H:"));
-  Serial.print(currentHumidity, 1);
+  mode3StartTemperature = currentTemperature;
+  mode3StartHumidity = currentHumidity;
+  Serial.print("진행 시간 : 0s | T:");
+  Serial.print((float)currentTemperature, 1);
+  Serial.print(" H:");
+  Serial.print((float)currentHumidity, 1);
 }
 
 void startMode3NeoTest(uint32_t now)
@@ -886,7 +784,8 @@ void executeMode3Command(char command, uint32_t now)
       startMode3BuzzerTest(now);
       break;
     case '9':
-      exitMode3ToInitial();
+      returnToMode3Menu();
+      enterInitialScreen();
       break;
     default:
       mode3MenuPrinted = false;
@@ -898,19 +797,19 @@ void executeMode3Command(char command, uint32_t now)
 
 void redrawMode3InputLine()
 {
-  Serial.print(F("\r명령어 입력 : [ "));
+  Serial.print("\r명령어 입력 : [ ");
   if (mode3PendingCommand != '\0') {
     Serial.print(mode3PendingCommand);
   } else {
     Serial.print(' ');
   }
-  Serial.print(F(" ]"));
+  Serial.print(" ]");
 }
 
 void handleMode3Serial(uint32_t now)
 {
   while (Serial.available() > 0) {
-    char received = static_cast<char>(Serial.read());
+    char received = Serial.read();
 
     if (currentMode != MODE_3 || mode3State != MODE3_MENU) {
       continue;
@@ -940,11 +839,6 @@ void handleMode3Serial(uint32_t now)
   }
 }
 
-void showMode3ResultScreen(const char *line1, const char *line2)
-{
-  showLcdLines("", line1, line2, "");
-  setFndText("ADMI");
-}
 
 void updateMode3(uint32_t now)
 {
@@ -957,16 +851,16 @@ void updateMode3(uint32_t now)
       break;
 
     case MODE3_LCD_TEST:
-      setFndText("ADMI");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3LastStepMs >= mode3LcdFillStepMs) {
         mode3LastStepMs = now;
-        uint8_t row = mode3StepIndex / LCD_COLUMNS;
-        uint8_t col = mode3StepIndex % LCD_COLUMNS;
+        uint8_t row = mode3StepIndex / 20;
+        uint8_t col = mode3StepIndex % 20;
         lcd.setCursor(col, row);
         lcd.write(LCD_BLOCK_CHAR);
         ++mode3StepIndex;
 
-        if (mode3StepIndex >= LCD_COLUMNS * LCD_ROWS) {
+        if (mode3StepIndex >= 20 * 4) {
           mode3State = MODE3_LCD_RESULT;
           mode3StateStartedMs = now;
           clearLcdDirect();
@@ -975,42 +869,43 @@ void updateMode3(uint32_t now)
       break;
 
     case MODE3_LCD_RESULT:
-      showMode3ResultScreen("    LCD TEST OK", "   [RESULT: PASS]");
+      showLcdLines("", "    LCD TEST OK", "   [RESULT: PASS]", "");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
       break;
 
     case MODE3_DHT_TEST: {
-      char line2[LCD_COLUMNS + 1];
+      char line2[20 + 1];
       buildTemperatureHumidityLine(line2);
       showLcdLines("DHT11 DYNAMIC TEST", "WAIT FOR CHANGE.....", line2, "");
-      setFndText("ADMI");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
 
       uint32_t elapsedSec = (now - mode3StateStartedMs) / 1000;
       if (now - mode3LastStepMs >= 1000) {
         mode3LastStepMs = now;
-        Serial.print(F("\r진행 시간 : "));
+        Serial.print("\r진행 시간 : ");
         Serial.print(elapsedSec);
-        Serial.print(F("s | T:"));
-        Serial.print(currentTemperature, 1);
-        Serial.print(F(" H:"));
-        Serial.print(currentHumidity, 1);
-        Serial.print(F("  "));
+        Serial.print("s | T:");
+        Serial.print(currentTemperature);
+        Serial.print(" H:");
+        Serial.print(currentHumidity);
+        Serial.print("  ");
       }
 
       {
-        int currentTemp = roundSensorValue(currentTemperature);
-        int currentHumi = roundSensorValue(currentHumidity);
+        int currentTemp = currentTemperature;
+        int currentHumi = currentHumidity;
         if (currentTemp != mode3StartTemperature || currentHumi != mode3StartHumidity) {
           Serial.println();
-          Serial.print(F("진행 시간 : "));
+          Serial.print("진행 시간 : ");
           Serial.print(elapsedSec);
-          Serial.print(F("s | T:"));
-          Serial.print(currentTemperature, 1);
-          Serial.print(F(" H:"));
-          Serial.print(currentHumidity, 1);
-          Serial.println(F(" [변경 감지]"));
+          Serial.print("s | T:");
+          Serial.print(currentTemperature);
+          Serial.print(" H:");
+          Serial.print(currentHumidity);
+          Serial.println(" [변경 감지]");
           mode3State = MODE3_DHT_RESULT;
           mode3StateStartedMs = now;
         }
@@ -1019,7 +914,8 @@ void updateMode3(uint32_t now)
     }
 
     case MODE3_DHT_RESULT:
-      showMode3ResultScreen("   DHT11 TEST OK", "   [RESULT: PASS]");
+      showLcdLines("", "   DHT11 TEST OK", "   [RESULT: PASS]", "");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
@@ -1027,19 +923,19 @@ void updateMode3(uint32_t now)
 
     case MODE3_NEO_TEST:
       showLcdLines("NEO PIXEL TESTING..", "", "", "");
-      setFndText("ADMI");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3LastStepMs >= mode3NeoStepMs) {
         mode3LastStepMs = now;
         uint8_t colorIndex = mode3StepIndex / NUM_PIXELS;
         uint8_t pixelIndex = mode3StepIndex % NUM_PIXELS;
-        clearPixels();
+        setAllPixels(COLOR_OFF);
         if (colorIndex < 3) {
           pixels.setPixelColor(pixelIndex, neoColors[colorIndex]);
           pixels.show();
           ++mode3StepIndex;
         }
         if (mode3StepIndex >= NUM_PIXELS * 3) {
-          clearPixels();
+          setAllPixels(COLOR_OFF);
           mode3State = MODE3_NEO_RESULT;
           mode3StateStartedMs = now;
         }
@@ -1047,38 +943,40 @@ void updateMode3(uint32_t now)
       break;
 
     case MODE3_NEO_RESULT:
-      showMode3ResultScreen(" NEO PIXEL TEST OK", " [RESULT: ALL PASS]");
+      showLcdLines("", " NEO PIXEL TEST OK", " [RESULT: ALL PASS]", "");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
       break;
 
     case MODE3_KEYPAD_TEST: {
-      char line3[LCD_COLUMNS + 1];
+      char line3[20 + 1];
       if (mode3LastPressedKey >= '1' && mode3LastPressedKey <= '8') {
-        snprintf(line3, sizeof(line3), "PRESSED: SW%c", mode3LastPressedKey);
+        sprintf(line3, "PRESSED: SW%c", mode3LastPressedKey);
       } else {
-        snprintf(line3, sizeof(line3), "PRESSED: --");
+        sprintf(line3, "PRESSED: --");
       }
       showLcdLines("KEYPAD TESTING...", "PUSH ANY KEY (9:END)", "", line3);
-      setFndText("ADMI");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       break;
     }
 
     case MODE3_KEYPAD_RESULT:
-      showMode3ResultScreen(" KEYPAD TEST OK", " [RESULT: ALL PASS]");
+      showLcdLines("", " KEYPAD TEST OK", " [RESULT: ALL PASS]", "");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
       break;
 
     case MODE3_BUZZER_TEST: {
-      char line1[LCD_COLUMNS + 1];
+      char line1[20 + 1];
       showLcdLines("BUZZER TESTING...", "", "", "");
-      setFndText("ADMI");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
 
       if (mode3StepIndex < 4) {
-        snprintf(line1, sizeof(line1), "[FREQ:%3uHz]", buzzerTestFrequencies[mode3StepIndex]);
+        sprintf(line1, "[FREQ:%3uHz]", buzzerTestFrequencies[mode3StepIndex]);
         writeLcdLine(1, line1);
       }
 
@@ -1097,12 +995,29 @@ void updateMode3(uint32_t now)
     }
 
     case MODE3_BUZZER_RESULT:
-      showMode3ResultScreen("   BUZZER TEST OK", "   [RESULT: PASS]");
+      showLcdLines("", "   BUZZER TEST OK", "   [RESULT: PASS]", "");
+      setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
       }
       break;
   }
+}
+
+// ─── 공통 업데이트 / 입력 처리 ─────────────────────────────────────────────
+
+void updateNeoPixelsForCurrentMode(uint32_t now)
+{
+  if (currentMode == MODE_2) {
+    updateMode2Pixels(now);
+    return;
+  }
+
+  if (currentMode == MODE_3 && mode3State == MODE3_NEO_TEST) {
+    return;
+  }
+
+  showTemperatureHumidityPixels();
 }
 
 void handleButtonPress(char key, uint32_t now)
@@ -1131,7 +1046,7 @@ void handleButtonPress(char key, uint32_t now)
     case MODE_2:
       if (key >= '4' && key <= '8') {
         tone(buzzer_pin, BEEP_MODE2_FREQ, BEEP_MODE2_MS);
-        startMode2Call(buttonToFloor(key), now);
+        startMode2Call((key - '4') + 1, now);
       } else if (key == '9') {
         pauseMode2(now);
       }
@@ -1147,36 +1062,14 @@ void handleButtonPress(char key, uint32_t now)
           mode3StateStartedMs = now;
         }
       } else if (key == '9') {
-        exitMode3ToInitial();
+        returnToMode3Menu();
+      enterInitialScreen();
       }
       break;
   }
 }
 
-void updateInitialMode()
-{
-  showLcdLines(
-    " ELEVATOR SYSTEM",
-    "  CIRCUIT DESIGN",
-    "  & PROGRAMMING",
-    "   2026.06.13"
-  );
-  setFndText("ELEV");
-}
-
-void updateNeoPixelsForCurrentMode(uint32_t now)
-{
-  if (currentMode == MODE_2) {
-    updateMode2Pixels(now);
-    return;
-  }
-
-  if (currentMode == MODE_3 && mode3State == MODE3_NEO_TEST) {
-    return;
-  }
-
-  showTemperatureHumidityPixels();
-}
+// ─── Arduino 진입점 ────────────────────────────────────────────────────────
 
 void setup()
 {
@@ -1192,24 +1085,24 @@ void setup()
 
   lcd.begin();
   lcd.backlight();
-  lcd.createChar(LCD_DEGREE_CHAR, const_cast<uint8_t *>(degreeCharBitmap));
-  lcd.createChar(LCD_BLOCK_CHAR, const_cast<uint8_t *>(blockCharBitmap));
+  lcd.createChar(LCD_DEGREE_CHAR, degreeCharBitmap);
+  lcd.createChar(LCD_BLOCK_CHAR, blockCharBitmap);
   clearLcdDirect();
 
-  for (uint8_t i = 0; i < 14; ++i) {
+  for (int i = 0; i < 14; ++i) {
     pinMode(seg_pins1[i], OUTPUT);
     digitalWrite(seg_pins1[i], HIGH);
     pinMode(seg_pins2[i], OUTPUT);
     digitalWrite(seg_pins2[i], HIGH);
   }
 
-  for (uint8_t i = 0; i < 4; ++i) {
+  for (int i = 0; i < 4; ++i) {
     pinMode(digit_pins[i], OUTPUT);
     digitalWrite(digit_pins[i], LOW);
   }
 
   pixels.begin();
-  clearPixels();
+  setAllPixels(COLOR_OFF);
 
   tone(buzzer_pin, 440, 500);
   delay(500);
@@ -1219,7 +1112,7 @@ void setup()
   resetMode1State();
   enterInitialScreen();
 
-  MsTimer2::set(digitOnMs, displayISR);
+  MsTimer2::set(digitOnMs, fndISR);
   MsTimer2::start();
 }
 
@@ -1252,3 +1145,6 @@ void loop()
 
   updateNeoPixelsForCurrentMode(now);
 }
+
+
+
