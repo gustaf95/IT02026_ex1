@@ -1,4 +1,5 @@
 ﻿#include <Arduino.h>
+#include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 #include <Adafruit_NeoPixel.h>
@@ -73,6 +74,7 @@ uint8_t LCD_DEGREE_CHAR = 1;
 uint8_t LCD_BLOCK_CHAR = 2;
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
+char lcdData[4][20 + 1] = {{0,},};
 char lcdCache[4][20 + 1] = {{0,},};
 uint8_t degreeCharBitmap[8] = {
   B00110,
@@ -119,12 +121,19 @@ void writeLcdLine(uint8_t row, const char *text)
   }
 }
 
-void showLcdLines(const char *line0, const char *line1, const char *line2, const char *line3)
+void setLcdData(const char *line0, const char *line1, const char *line2, const char *line3)
 {
-  writeLcdLine(0, line0);
-  writeLcdLine(1, line1);
-  writeLcdLine(2, line2);
-  writeLcdLine(3, line3);
+  snprintf(lcdData[0], 20 + 1, "%-20s", line0);
+  snprintf(lcdData[1], 20 + 1, "%-20s", line1);
+  snprintf(lcdData[2], 20 + 1, "%-20s", line2);
+  snprintf(lcdData[3], 20 + 1, "%-20s", line3);
+}
+
+void updateLcdLines(void)
+{
+  for (uint8_t row = 0; row < 4; row++) {
+    writeLcdLine(row, lcdData[row]);
+  }
 }
 
 // ─── DHT / 센서 ────────────────────────────────────────────────────────────
@@ -302,71 +311,44 @@ void showTemperatureHumidityPixels()
 
 // ─── 화면 / 탐색 ──────────────────────────────────────────────────────────
 
-void enterInitialScreen()
-{
-  currentMode = MODE_INITIAL;
-  showLcdLines(
-    " ELEVATOR SYSTEM",
-    "  CIRCUIT DESIGN",
-    "  & PROGRAMMING",
-    "   2026.06.13"
-  );
-}
-
-void updateInitialMode()
-{
-  showLcdLines(
-    " ELEVATOR SYSTEM",
-    "  CIRCUIT DESIGN",
-    "  & PROGRAMMING",
-    "   2026.06.13"
-  );
-  setFndChar(CHAR_E_MASK, CHAR_L_MASK, CHAR_E_MASK, CHAR_V_MASK);
-}
-
 // ─── Mode 1 (FND 핀 테스트) ────────────────────────────────────────────────
 uint8_t mode1Step = 0;    //현재 몇 번째 핀을 테스트 중인지. step / 14 → 자릿수. step % 14 → segment
 uint32_t fndTestIntervalMs = 300;
 uint32_t mode1LastStepMs = 0;     //마지막으로 스텝이 바뀐 시각
 uint32_t mode1StageStartedMs = 0;   //현재 스테이지(TESTING 또는 RESULT)가 시작된 시각.  TESTING/RESULT 단계의 타이머
 
-void showMode1ActiveScreen()
-{
-  uint8_t digit   = mode1Step / 14;
-  uint8_t segment = mode1Step % 14;
-  char line1[20 + 1];
-  char line2[20 + 1];
-
-  sprintf(line1, "CHECK DIGIT: F%d", digit + 1);
-  uint8_t *pins = (digit < 2) ? seg_pins1 : seg_pins2;
-  sprintf(line2, "CHECK PORT: IO%02d", pins[segment]);
-
-  showLcdLines("PIN TEST: ACTIVE", line1, line2, "");
-  clearFndMasks();
-  fndMasks[digit] = fndPinTestSequence[segment];
-}
-
 void updateMode1(uint32_t now)
 {
   switch (mode1Stage) {
     case MODE1_STAGE_SCAN:
-      showMode1ActiveScreen();
+      // digit과 segment 계산
+      uint8_t digit   = mode1Step / 14;
+      uint8_t segment = mode1Step % 14;
+      // LCD에 현재 테스트 중인 digit과 segment 정보 표시
+      char line1[20 + 1];
+      char line2[20 + 1];
+      sprintf(line1, "CHECK DIGIT: F%d", digit + 1);
+      uint8_t *pins = (digit < 2) ? seg_pins1 : seg_pins2;
+      sprintf(line2, "CHECK PORT: IO%02d", pins[segment]);
+      setLcdData("PIN TEST: ACTIVE", line1, line2, "");
+      // FND에 현재 테스트 중인 segment 표시
+      clearFndMasks();
+      fndMasks[digit] = fndPinTestSequence[segment];
+      // 일정 시간이 지나면 다음 단계로 이동
       if (now - mode1LastStepMs >= fndTestIntervalMs) {
         mode1LastStepMs = now;
-        if (mode1Step == 4*14-1) {
+        mode1Step++;
+        // 모든 핀 테스트가 완료되면 TESTING 단계로 이동
+        if (mode1Step == 4*14) {
           mode1Stage = MODE1_STAGE_TESTING;
-          mode1StageStartedMs = now;
-        } else {
-          mode1Step++;
+          mode1StageStartedMs = now;        
         }
-        clearFndMasks();
-        fndMasks[mode1Step / 14] = fndPinTestSequence[mode1Step % 14];
       }
       break;
 
     case MODE1_STAGE_TESTING:
       //show Mode1 Testing Screen
-      showLcdLines("PIN TESTING......", "", "", "");
+      setLcdData("PIN TESTING......", "", "", "");
       setFndChar(CHAR_T_MASK, CHAR_E_MASK, CHAR_S_MASK, CHAR_T_MASK);
       if (now - mode1StageStartedMs >= 3000) {
         mode1Stage = MODE1_STAGE_RESULT;
@@ -376,13 +358,14 @@ void updateMode1(uint32_t now)
 
     case MODE1_STAGE_RESULT:
       //show Mode1 Result Screen
-      showLcdLines("PIN TEST COMPLETED", "STATUS: DONE", "RESULT: OK", "");
+      setLcdData("PIN TEST COMPLETED", "STATUS: DONE", "RESULT: OK", "");
       setFndChar(CHAR_BLANK_MASK, CHAR_O_MASK, CHAR_K_MASK, CHAR_BLANK_MASK);
       if (now - mode1StageStartedMs >= 3000) {
         // Reset Mode1 State
         mode1Stage = MODE1_STAGE_SCAN;
         mode1Step = 0;
-        enterInitialScreen();
+        currentMode = MODE_INITIAL;
+        setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
       }
       break;
   }
@@ -482,7 +465,7 @@ void showMode2Lcd()
   sprintf(line2, "MODE:%-4s DOOR:%-5s", mode2ModeLabel(), mode2DoorLabel());
   buildTemperatureHumidityLine(line3);
 
-  showLcdLines("    ELEV SYSTEM", line1, line2, line3);
+  setLcdData("    ELEV SYSTEM", line1, line2, line3);
 }
 
 void updateMode2Pixels(uint32_t now)
@@ -527,7 +510,8 @@ void pauseMode2(uint32_t now)
 {
   mode2Paused = true;
   mode2PausedElapsedMs = now - mode2StateStartedMs;
-  enterInitialScreen();
+  currentMode = MODE_INITIAL;
+  setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
 }
 
 void startMode2Call(uint8_t targetFloor, uint32_t now)
@@ -648,7 +632,7 @@ void showMode3Menu()
   char line3[20 + 1];
   sprintf(line3, "SELECT NUMBER:[%c]", mode3PendingCommand == '\0' ? ' ' : mode3PendingCommand);
 
-  showLcdLines(
+  setLcdData(
     "    DEVICE TESTING",
     "1:LCD 2:DHT 3:NEO",
     "4:KEY 5:BUZ 9:EXIT",
@@ -730,7 +714,8 @@ void executeMode3Command(char command, uint32_t now)
       break;
     case '9':
       returnToMode3Menu();
-      enterInitialScreen();
+      currentMode = MODE_INITIAL;
+      setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
       break;
     default:
       mode3MenuPrinted = false;
@@ -814,7 +799,7 @@ void updateMode3(uint32_t now)
       break;
 
     case MODE3_LCD_RESULT:
-      showLcdLines("", "    LCD TEST OK", "   [RESULT: PASS]", "");
+      setLcdData("", "    LCD TEST OK", "   [RESULT: PASS]", "");
       setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
@@ -824,7 +809,7 @@ void updateMode3(uint32_t now)
     case MODE3_DHT_TEST: {
       char line2[20 + 1];
       buildTemperatureHumidityLine(line2);
-      showLcdLines("DHT11 DYNAMIC TEST", "WAIT FOR CHANGE.....", line2, "");
+      setLcdData("DHT11 DYNAMIC TEST", "WAIT FOR CHANGE.....", line2, "");
       setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
 
       uint32_t elapsedSec = (now - mode3StateStartedMs) / 1000;
@@ -859,7 +844,7 @@ void updateMode3(uint32_t now)
     }
 
     case MODE3_DHT_RESULT:
-      showLcdLines("", "   DHT11 TEST OK", "   [RESULT: PASS]", "");
+      setLcdData("", "   DHT11 TEST OK", "   [RESULT: PASS]", "");
       setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
@@ -867,7 +852,7 @@ void updateMode3(uint32_t now)
       break;
 
     case MODE3_NEO_TEST:
-      showLcdLines("NEO PIXEL TESTING..", "", "", "");
+      setLcdData("NEO PIXEL TESTING..", "", "", "");
       setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3LastStepMs >= mode3NeoStepMs) {
         mode3LastStepMs = now;
@@ -888,7 +873,7 @@ void updateMode3(uint32_t now)
       break;
 
     case MODE3_NEO_RESULT:
-      showLcdLines("", " NEO PIXEL TEST OK", " [RESULT: ALL PASS]", "");
+      setLcdData("", " NEO PIXEL TEST OK", " [RESULT: ALL PASS]", "");
       setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
@@ -902,13 +887,13 @@ void updateMode3(uint32_t now)
       } else {
         sprintf(line3, "PRESSED: --");
       }
-      showLcdLines("KEYPAD TESTING...", "PUSH ANY KEY (9:END)", "", line3);
+      setLcdData("KEYPAD TESTING...", "PUSH ANY KEY (9:END)", "", line3);
       setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       break;
     }
 
     case MODE3_KEYPAD_RESULT:
-      showLcdLines("", " KEYPAD TEST OK", " [RESULT: ALL PASS]", "");
+      setLcdData("", " KEYPAD TEST OK", " [RESULT: ALL PASS]", "");
       setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
@@ -917,7 +902,7 @@ void updateMode3(uint32_t now)
 
     case MODE3_BUZZER_TEST: {
       char line1[20 + 1];
-      showLcdLines("BUZZER TESTING...", "", "", "");
+      setLcdData("BUZZER TESTING...", "", "", "");
       setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
 
       if (mode3StepIndex < 4) {
@@ -940,7 +925,7 @@ void updateMode3(uint32_t now)
     }
 
     case MODE3_BUZZER_RESULT:
-      showLcdLines("", "   BUZZER TEST OK", "   [RESULT: PASS]", "");
+      setLcdData("", "   BUZZER TEST OK", "   [RESULT: PASS]", "");
       setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
       if (now - mode3StateStartedMs >= mode3ResultMs) {
         returnToMode3Menu();
@@ -987,7 +972,8 @@ void handleButtonPress(char key, uint32_t now)
       if (key == '9') {
         tone(buzzer_pin, BEEP_MODE_SELECT_FREQ, BEEP_MODE_SELECT_MS);
         //pause Mode1
-        enterInitialScreen();
+        currentMode = MODE_INITIAL;
+        setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
       }
       break;
 
@@ -1011,7 +997,8 @@ void handleButtonPress(char key, uint32_t now)
         }
       } else if (key == '9') {
         returnToMode3Menu();
-      enterInitialScreen();
+        currentMode = MODE_INITIAL;
+        setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
       }
       break;
   }
@@ -1060,7 +1047,7 @@ void setup()
   // Reset Mode1 State
   mode1Stage = MODE1_STAGE_SCAN;
   mode1Step = 0;
-  enterInitialScreen();
+  setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
 
   MsTimer2::set(digitOnMs, fndISR);
   MsTimer2::start();
@@ -1074,13 +1061,14 @@ void loop()
   handleMode3Serial(now);
 
   char key = customKeypad.getKey();
-  if (key != NO_KEY) {
+  if (key) {
     handleButtonPress(key, now);
   }
 
   switch (currentMode) {
     case MODE_INITIAL:
-      updateInitialMode();
+      setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
+      setFndChar(CHAR_E_MASK, CHAR_L_MASK, CHAR_E_MASK, CHAR_V_MASK);
       break;
     case MODE_1:
       updateMode1(now);
@@ -1094,5 +1082,5 @@ void loop()
   }
 
   updateNeoPixelsForCurrentMode(now);
+  updateLcdLines();
 }
-
