@@ -3,7 +3,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 #include <Adafruit_NeoPixel.h>
-#include <MsTimer2.h>
+#include <TimerThree.h>
 #include "DHT.h"
 
 uint8_t trig_pin = 3;
@@ -72,17 +72,9 @@ int mode3StartHumidity = 0;
 uint8_t LCD_DEGREE_CHAR = 1;
 uint8_t LCD_BLOCK_CHAR = 2;
 
-LiquidCrystal_I2C lcd(0x27, 20, 4);
-char lcdData[4][20 + 1] = {
-    {
-        0,
-    },
-};
-char lcdCache[4][20 + 1] = {
-    {
-        0,
-    },
-};
+LiquidCrystal_I2C lcd(0x3F, 20, 4);
+char lcdData[4][20 + 1] = {{0,},};
+char lcdCache[4][20 + 1] = {{0,},};
 uint8_t degreeCharBitmap[8] = {
     B00110,
     B01001,
@@ -168,9 +160,9 @@ void buildTemperatureHumidityLine(char *out)
 // ─── FND ───────────────────────────────────────────────────────────────────
 uint32_t digitOnMs = 1;
 
-uint8_t seg_pins1[14] = {15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 27, 28, 29, 30};
-uint8_t seg_pins2[14] = {33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46};
-uint8_t digit_pins[4] = {31, 32, 47, 48};
+uint8_t seg_pins1[15] = {15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
+uint8_t seg_pins2[15] = {35, 36, 37, 38, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51};
+uint8_t digit_pins[] = {32, 33, 52, 53};
 
 uint16_t SEG_A = 1 << 0;
 uint16_t SEG_B = 1 << 1;
@@ -186,10 +178,11 @@ uint16_t SEG_L = 1 << 10;
 uint16_t SEG_M = 1 << 11;
 uint16_t SEG_N = 1 << 12;
 uint16_t SEG_P = 1 << 13;
+uint16_t SEG_DP = 0x1<<14;
 
-const uint16_t fndPinTestSequence[14] = {SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F,
-                                         SEG_G, SEG_H, SEG_J, SEG_K, SEG_L, SEG_M, SEG_N, SEG_P};
-size_t fndPinTestSequenceLength = 14;
+const uint16_t fndPinTestSequence[15] = {SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F,
+                                         SEG_G, SEG_H, SEG_J, SEG_K, SEG_L, SEG_M, SEG_N, SEG_P, SEG_DP};
+size_t fndPinTestSequenceLength = 15;
 
 uint16_t CHAR_1_MASK = (SEG_B | SEG_C);
 uint16_t CHAR_2_MASK = (SEG_A | SEG_B | SEG_D | SEG_E | SEG_N | SEG_J);
@@ -240,7 +233,7 @@ void setFndChar(uint16_t f1, uint16_t f2, uint16_t f3, uint16_t f4)
 void writeDigitSegments(uint8_t digit, uint16_t mask)
 {
   uint8_t *pins = (digit < 2) ? seg_pins1 : seg_pins2;
-  for (int i = 0; i < 14; ++i)
+  for (int i = 0; i < 15; ++i)
   {
     digitalWrite(pins[i], ((mask >> i) & 0x1) ? LOW : HIGH);
   }
@@ -332,9 +325,10 @@ void updateMode1(uint32_t now)
   switch (mode1Stage)
   {
   case MODE1_STAGE_SCAN:
+  {
     // digit과 segment 계산
-    uint8_t digit = mode1Step / 14;
-    uint8_t segment = mode1Step % 14;
+    uint8_t digit = mode1Step / 15; // 15는 segment 개수 (A, B, C, D, E, F, G, H, J, K, L, M, N, P, DP)
+    uint8_t segment = mode1Step % 15; 
     // LCD에 현재 테스트 중인 digit과 segment 정보 표시
     char line1[20 + 1];
     char line2[20 + 1];
@@ -351,13 +345,14 @@ void updateMode1(uint32_t now)
       mode1LastStepMs = now;
       mode1Step++;
       // 모든 핀 테스트가 완료되면 TESTING 단계로 이동
-      if (mode1Step == 4 * 14)
+      if (mode1Step == 4 * 15) // 4 digits * 15 segments
       {
         mode1Stage = MODE1_STAGE_TESTING;
         mode1StageStartedMs = now;
       }
     }
     break;
+  }
 
   case MODE1_STAGE_TESTING:
     // show Mode1 Testing Screen
@@ -1056,8 +1051,9 @@ void setup()
   lcd.createChar(LCD_DEGREE_CHAR, degreeCharBitmap);
   lcd.createChar(LCD_BLOCK_CHAR, blockCharBitmap);
   clearLcdDirect();
+  
 
-  for (int i = 0; i < 14; ++i)
+  for (int i = 0; i < 15; ++i)
   {
     pinMode(seg_pins1[i], OUTPUT);
     digitalWrite(seg_pins1[i], HIGH);
@@ -1084,8 +1080,8 @@ void setup()
   mode1Step = 0;
   setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
 
-  MsTimer2::set(digitOnMs, fndISR);
-  MsTimer2::start();
+  Timer3.initialize(digitOnMs * 1000UL);
+  Timer3.attachInterrupt(fndISR);
 }
 
 void loop()
