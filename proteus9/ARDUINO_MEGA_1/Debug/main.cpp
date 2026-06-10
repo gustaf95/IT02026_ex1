@@ -1,10 +1,54 @@
-﻿#include <Arduino.h>
+#line 1 "../main.ino"
+#include <Arduino.h>
+#line 1
+#include <Arduino.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 #include <Adafruit_NeoPixel.h>
-#include <TimerOne.h>
-#include <DHT.h>
+#include <TimerThree.h>
+#include "DHT.h"
+void resetLcdCache ();
+void clearLcdDirect ();
+void writeLcdLine (uint8_t row ,const char *text );
+void setLcdData (const char *line0 ,const char *line1 ,const char *line2 ,const char *line3 );
+void updateLcdLines (void );
+void updateSensorValues (uint32_t now );
+void buildTemperatureHumidityLine (char *out );
+void clearFndMasks ();
+void setFndChar (uint16_t f1 ,uint16_t f2 ,uint16_t f3 ,uint16_t f4 );
+void writeDigitSegments (uint8_t digit ,uint16_t mask );
+void fndISR ();
+void setAllPixels (uint32_t color );
+void showTemperatureHumidityPixels ();
+void updateMode1 (uint32_t now );
+const char *mode2ModeLabel ();
+const char *mode2DoorLabel ();
+void setMode2DoorMasks (bool showDoor ,bool doorOpen );
+void updateMode2Fnd (uint32_t now );
+void showMode2Lcd ();
+void updateMode2Pixels (uint32_t now );
+void beginMode2 (uint32_t now );
+void pauseMode2 (uint32_t now );
+void startMode2Call (uint8_t targetFloor ,uint32_t now );
+void updateMode2 (uint32_t now );
+void printMode3MenuToSerial ();
+void returnToMode3Menu ();
+void beginMode3 (uint32_t now );
+void showMode3Menu ();
+void startMode3LcdTest (uint32_t now );
+void startMode3DhtTest (uint32_t now );
+void startMode3NeoTest (uint32_t now );
+void startMode3KeypadTest (uint32_t now );
+void startMode3BuzzerTest (uint32_t now );
+void executeMode3Command (char command ,uint32_t now );
+void redrawMode3InputLine ();
+void handleMode3Serial (uint32_t now );
+void updateMode3 (uint32_t now );
+void updateNeoPixelsForCurrentMode (uint32_t now );
+void setup ();
+void loop ();
+#line 8
 
 uint8_t trig_pin = 3;
 uint8_t echo_pin = 4;
@@ -1080,8 +1124,8 @@ void setup()
   mode1Step = 0;
   setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
 
-  Timer1.initialize(digitOnMs);
-  Timer1.attachInterrupt(fndISR);
+  Timer3.initialize(digitOnMs * 1000UL);
+  Timer3.attachInterrupt(fndISR);
 }
 
 void loop()
