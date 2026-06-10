@@ -73,8 +73,16 @@ uint8_t LCD_DEGREE_CHAR = 1;
 uint8_t LCD_BLOCK_CHAR = 2;
 
 LiquidCrystal_I2C lcd(0x3F, 20, 4);
-char lcdData[4][20 + 1] = {{0,},};
-char lcdCache[4][20 + 1] = {{0,},};
+char lcdData[4][20 + 1] = {
+    {
+        0,
+    },
+};
+char lcdCache[4][20 + 1] = {
+    {
+        0,
+    },
+};
 uint8_t degreeCharBitmap[8] = {
     B00110,
     B01001,
@@ -178,7 +186,7 @@ uint16_t SEG_L = 1 << 10;
 uint16_t SEG_M = 1 << 11;
 uint16_t SEG_N = 1 << 12;
 uint16_t SEG_P = 1 << 13;
-uint16_t SEG_DP = 0x1<<14;
+uint16_t SEG_DP = 0x1 << 14;
 
 const uint16_t fndPinTestSequence[15] = {SEG_A, SEG_B, SEG_C, SEG_D, SEG_E, SEG_F,
                                          SEG_G, SEG_H, SEG_J, SEG_K, SEG_L, SEG_M, SEG_N, SEG_P, SEG_DP};
@@ -328,7 +336,7 @@ void updateMode1(uint32_t now)
   {
     // digit과 segment 계산
     uint8_t digit = mode1Step / 15; // 15는 segment 개수 (A, B, C, D, E, F, G, H, J, K, L, M, N, P, DP)
-    uint8_t segment = mode1Step % 15; 
+    uint8_t segment = mode1Step % 15;
     // LCD에 현재 테스트 중인 digit과 segment 정보 표시
     char line1[20 + 1];
     char line2[20 + 1];
@@ -511,27 +519,6 @@ void updateMode2Pixels(uint32_t now)
   }
 
   setAllPixels(COLOR_PINK);
-}
-
-void beginMode2(uint32_t now)
-{
-  currentMode = MODE_2;
-  if (!mode2Initialized)
-  {
-    mode2Initialized = true;
-    mode2State = MODE2_IDLE;
-    mode2CurrentFloor = 1;
-    mode2TargetFloor = 1;
-    mode2StateStartedMs = now;
-    mode2Paused = false;
-    return;
-  }
-
-  if (mode2Paused)
-  {
-    mode2Paused = false;
-    mode2StateStartedMs = now - mode2PausedElapsedMs;
-  }
 }
 
 void pauseMode2(uint32_t now)
@@ -1051,7 +1038,6 @@ void setup()
   lcd.createChar(LCD_DEGREE_CHAR, degreeCharBitmap);
   lcd.createChar(LCD_BLOCK_CHAR, blockCharBitmap);
   clearLcdDirect();
-  
 
   for (int i = 0; i < 15; ++i)
   {
@@ -1080,7 +1066,7 @@ void setup()
   mode1Step = 0;
   setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
 
-  Timer1.initialize(digitOnMs);
+  Timer1.initialize(digitOnMs * 1000);
   Timer1.attachInterrupt(fndISR);
 }
 
@@ -1109,7 +1095,23 @@ void loop()
       else if (key == '2')
       {
         tone(buzzer_pin, BEEP_MODE_SELECT_FREQ, BEEP_MODE_SELECT_MS);
-        beginMode2(now);
+        currentMode = MODE_2;
+        if (!mode2Initialized)
+        {
+          mode2Initialized = true;
+          mode2State = MODE2_IDLE;
+          mode2CurrentFloor = 1;
+          mode2TargetFloor = 1;
+          mode2StateStartedMs = now;
+          mode2Paused = false;
+          return;
+        }
+
+        if (mode2Paused)
+        {
+          mode2Paused = false;
+          mode2StateStartedMs = now - mode2PausedElapsedMs;
+        }
       }
       else if (key == '3')
       {
