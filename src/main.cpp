@@ -41,6 +41,8 @@ uint8_t ldr_pin = A0;
 #define MODE3_KEYPAD_RESULT 8
 #define MODE3_BUZZER_TEST 9
 #define MODE3_BUZZER_RESULT 10
+#define MODE3_PASSWORD 11
+#define MODE3_PW_FAIL  12
 
 uint8_t currentMode = MODE_INITIAL;
 uint8_t mode1Stage = MODE1_STAGE_SCAN;
@@ -67,6 +69,8 @@ uint8_t mode3StepIndex = 0;
 uint8_t mode2LastWarningPhase = 0;
 int mode3StartTemperature = 0;
 int mode3StartHumidity = 0;
+char mode3PwInput[9] = {0};
+uint8_t mode3PwLen = 0;
 
 // ─── LCD ───────────────────────────────────────────────────────────────────
 uint8_t LCD_DEGREE_CHAR = 1;
@@ -443,7 +447,43 @@ void handleMode3Serial(uint32_t now)
   while (Serial.available() > 0)
   {
     char received = Serial.read();
-    if (currentMode != MODE_3 || mode3State != MODE3_MENU)
+    if (currentMode != MODE_3) continue;
+
+    if (mode3State == MODE3_PASSWORD)
+    {
+      if (received == '\r' || received == '\n')
+      {
+        mode3PwInput[mode3PwLen] = '\0';
+        if (strcmp(mode3PwInput, "password") == 0)
+        {
+          Serial.println();
+          returnToMode3Menu();
+        }
+        else
+        {
+          mode3State = MODE3_PW_FAIL;
+          mode3StateStartedMs = now;
+          Serial.println("\n틀린 패스워드입니다.");
+        }
+      }
+      else if ((received == 8 || received == 127) && mode3PwLen > 0)
+      {
+        mode3PwInput[--mode3PwLen] = '\0';
+        char stars[9]; memset(stars, ' ', 8); stars[8] = '\0';
+        for (uint8_t i = 0; i < mode3PwLen; i++) stars[i] = '*';
+        Serial.print("\rPW: ["); Serial.print(stars); Serial.print("]");
+      }
+      else if (mode3PwLen < 8 && received >= 32 && received < 127)
+      {
+        mode3PwInput[mode3PwLen++] = received;
+        char stars[9]; memset(stars, ' ', 8); stars[8] = '\0';
+        for (uint8_t i = 0; i < mode3PwLen; i++) stars[i] = '*';
+        Serial.print("\rPW: ["); Serial.print(stars); Serial.print("]");
+      }
+      continue;
+    }
+
+    if (mode3State != MODE3_MENU)
       continue;
 
     if (received == '\r' || received == '\n')
@@ -525,6 +565,25 @@ void updateMode3(uint32_t now)
 
   switch (mode3State)
   {
+  case MODE3_PASSWORD:
+  {
+    char stars[9]; memset(stars, ' ', 8); stars[8] = '\0';
+    for (uint8_t i = 0; i < mode3PwLen; i++) stars[i] = '*';
+    char pwLine[21];
+    sprintf(pwLine, "PW: [%-8s]", stars);
+    setLcdData("   ADMIN MODE   ", "", pwLine, "");
+    break;
+  }
+  case MODE3_PW_FAIL:
+    setLcdData("   ADMIN MODE   ", "  WRONG PASSWORD", "  PLEASE RETRY  ", "");
+    if (now - mode3StateStartedMs >= 1500)
+    {
+      mode3PwLen = 0;
+      memset(mode3PwInput, 0, sizeof(mode3PwInput));
+      mode3State = MODE3_PASSWORD;
+      Serial.print("\rPW: [        ]");
+    }
+    break;
   case MODE3_MENU:
   {
     char line3[21];
@@ -779,7 +838,11 @@ void loop()
       {
         tone(buzzer_pin, BEEP_MODE_SELECT_FREQ, BEEP_MODE_SELECT_MS);
         currentMode = MODE_3;
-        returnToMode3Menu();
+        mode3State = MODE3_PASSWORD;
+        mode3PwLen = 0;
+        memset(mode3PwInput, 0, sizeof(mode3PwInput));
+        Serial.println("\n패스워드를 입력하세요:");
+        Serial.print("PW: [        ]");
       }
       break;
 
