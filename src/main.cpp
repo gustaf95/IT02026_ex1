@@ -103,25 +103,10 @@ uint8_t blockCharBitmap[8] = {
     B11111,
     B11111};
 
-void resetLcdCache()
-{
-  for (uint8_t row = 0; row < 4; row++)
-  {
-    lcdCache[row][0] = '\0';
-  }
-}
-
-void clearLcdDirect()
-{
-  lcd.clear();
-  resetLcdCache();
-}
 void writeLcdLine(uint8_t row, const char *text)
 {
   if (strcmp(lcdCache[row], text) != 0)
   {
-    lcd.setCursor(0, row);
-    lcd.print("                    ");
     lcd.setCursor(0, row);
     lcd.print(text);
     strcpy(lcdCache[row], text);
@@ -158,11 +143,6 @@ void updateSensorValues(uint32_t now)
     currentTemperature = dht.readTemperature();
     lastDhtReadMs = now;
   }
-}
-
-void buildTemperatureHumidityLine(char *out)
-{
-  sprintf(out, "TEMP:%2d%cC HUMI:%2d%%", currentTemperature, LCD_DEGREE_CHAR, currentHumidity);
 }
 
 // ─── FND ───────────────────────────────────────────────────────────────────
@@ -222,14 +202,6 @@ volatile uint16_t fndMasks[4] = {0, 0, 0, 0};
 
 uint16_t floorMasks[6] = {0, CHAR_1_MASK, CHAR_2_MASK, CHAR_3_MASK, CHAR_4_MASK, CHAR_5_MASK};
 
-void clearFndMasks()
-{
-  for (int i = 0; i < 4; ++i)
-  {
-    fndMasks[i] = 0;
-  }
-}
-
 void setFndChar(uint16_t f1, uint16_t f2, uint16_t f3, uint16_t f4)
 {
   fndMasks[0] = f1;
@@ -252,7 +224,7 @@ void fndISR()
   static uint8_t phase = 0;
   digitalWrite(digit_pins[phase], LOW);
   digitalWrite(digit_pins[phase + 2], LOW);
-  phase ^= 1;
+  phase = !phase;
   writeDigitSegments(phase, (uint16_t)fndMasks[phase]);
   writeDigitSegments(phase + 2, (uint16_t)fndMasks[phase + 2]);
   digitalWrite(digit_pins[phase], HIGH);
@@ -345,7 +317,7 @@ void updateMode1(uint32_t now)
     sprintf(line2, "CHECK PORT: IO%02d", pins[segment]);
     setLcdData("PIN TEST: ACTIVE", line1, line2, "");
     // FND에 현재 테스트 중인 segment 표시
-    clearFndMasks();
+    setFndChar(0,0,0,0);
     fndMasks[digit] = fndPinTestSequence[segment];
     // 일정 시간이 지나면 다음 단계로 이동
     if (now - mode1LastStepMs >= fndTestIntervalMs)
@@ -382,8 +354,7 @@ void updateMode1(uint32_t now)
       // Reset Mode1 State
       mode1Stage = MODE1_STAGE_SCAN;
       mode1Step = 0;
-      currentMode = MODE_INITIAL;
-      setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
+      currentMode = MODE_INITIAL;      
     }
     break;
   }
@@ -477,24 +448,11 @@ void updateMode2Fnd(uint32_t now)
 
   if (mode2State == MODE2_WARNING && !showDoor)
   {
-    clearFndMasks();
+    setFndChar(0,0,0,0);
     return;
   }
 
   setMode2DoorMasks(showDoor, doorOpen);
-}
-
-void showMode2Lcd()
-{
-  char line1[20 + 1];
-  char line2[20 + 1];
-  char line3[20 + 1];
-
-  sprintf(line1, "ELEV:%dF", mode2CurrentFloor);
-  sprintf(line2, "MODE:%-4s DOOR:%-5s", mode2ModeLabel(), mode2DoorLabel());
-  buildTemperatureHumidityLine(line3);
-
-  setLcdData("    ELEV SYSTEM", line1, line2, line3);
 }
 
 void updateMode2Pixels(uint32_t now)
@@ -519,34 +477,6 @@ void updateMode2Pixels(uint32_t now)
   }
 
   setAllPixels(COLOR_PINK);
-}
-
-void pauseMode2(uint32_t now)
-{
-  mode2Paused = true;
-  mode2PausedElapsedMs = now - mode2StateStartedMs;
-  currentMode = MODE_INITIAL;
-  setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
-}
-
-void startMode2Call(uint8_t targetFloor, uint32_t now)
-{
-  if (mode2State != MODE2_IDLE && mode2State != MODE2_COMPLETE && mode2State != MODE2_WARNING)
-  {
-    return;
-  }
-
-  mode2TargetFloor = targetFloor;
-  if (targetFloor == mode2CurrentFloor)
-  {
-    mode2State = MODE2_WARNING;
-    mode2StateStartedMs = now;
-    mode2LastWarningPhase = 255;
-    return;
-  }
-
-  mode2State = (targetFloor > mode2CurrentFloor) ? MODE2_MOVING_UP : MODE2_MOVING_DOWN;
-  mode2StateStartedMs = now;
 }
 
 void updateMode2(uint32_t now)
@@ -618,7 +548,13 @@ void updateMode2(uint32_t now)
     mode2StateStartedMs = now;
   }
 
-  showMode2Lcd();
+  // LCD 업데이트
+  char line1[20 + 1], line2[20 + 1], line3[20 + 1];
+  sprintf(line1, "ELEV:%dF", mode2CurrentFloor);
+  sprintf(line2, "MODE:%-4s DOOR:%-5s", mode2ModeLabel(), mode2DoorLabel());  
+  sprintf(line3, "TEMP:%2d%cC HUMI:%2d%%", currentTemperature, LCD_DEGREE_CHAR, currentHumidity);
+  setLcdData("ELEVATOR SYSTEM", line1, line2, line3);
+
   updateMode2Fnd(now);
 }
 
@@ -688,7 +624,7 @@ void startMode3LcdTest(uint32_t now)
   mode3StateStartedMs = now;
   mode3LastStepMs = now - mode3LcdFillStepMs;
   mode3StepIndex = 0;
-  clearLcdDirect();
+  setLcdData("", "", "", "");
 }
 
 void startMode3DhtTest(uint32_t now)
@@ -751,8 +687,7 @@ void executeMode3Command(char command, uint32_t now)
     break;
   case '9':
     returnToMode3Menu();
-    currentMode = MODE_INITIAL;
-    setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
+    currentMode = MODE_INITIAL;    
     break;
   default:
     mode3MenuPrinted = false;
@@ -841,7 +776,8 @@ void updateMode3(uint32_t now)
       {
         mode3State = MODE3_LCD_RESULT;
         mode3StateStartedMs = now;
-        clearLcdDirect();
+        setLcdData("", "", "", "");
+
       }
     }
     break;
@@ -858,7 +794,8 @@ void updateMode3(uint32_t now)
   case MODE3_DHT_TEST:
   {
     char line2[20 + 1];
-    buildTemperatureHumidityLine(line2);
+    
+    sprintf(line2, "TEMP:%2d%cC HUMI:%2d%%", currentTemperature, LCD_DEGREE_CHAR, currentHumidity);    
     setLcdData("DHT11 DYNAMIC TEST", "WAIT FOR CHANGE.....", line2, "");
     setFndChar(CHAR_A_MASK, CHAR_D_MASK, CHAR_M_MASK, CHAR_I_MASK);
 
@@ -1037,7 +974,7 @@ void setup()
   lcd.backlight();
   lcd.createChar(LCD_DEGREE_CHAR, degreeCharBitmap);
   lcd.createChar(LCD_BLOCK_CHAR, blockCharBitmap);
-  clearLcdDirect();
+  setLcdData("", "", "", "");
 
   for (int i = 0; i < 15; ++i)
   {
@@ -1064,8 +1001,7 @@ void setup()
   // Reset Mode1 State
   mode1Stage = MODE1_STAGE_SCAN;
   mode1Step = 0;
-  setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
-
+  
   Timer1.initialize(digitOnMs * 1000);
   Timer1.attachInterrupt(fndISR);
 }
@@ -1125,20 +1061,37 @@ void loop()
       {
         tone(buzzer_pin, BEEP_MODE_SELECT_FREQ, BEEP_MODE_SELECT_MS);
         // pause Mode1
-        currentMode = MODE_INITIAL;
-        setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
+        currentMode = MODE_INITIAL;        
       }
       break;
 
     case MODE_2:
-      if (key >= '4' && key <= '8')
+      if (key >= '4' && key <= '8') // 층 번호 입력 시
       {
         tone(buzzer_pin, BEEP_MODE2_FREQ, BEEP_MODE2_MS);
-        startMode2Call((key - '4') + 1, now);
+
+        if (mode2State != MODE2_IDLE && mode2State != MODE2_COMPLETE && mode2State != MODE2_WARNING)
+        {
+          return;
+        }
+
+        mode2TargetFloor = (key - '4') + 1;
+        if (mode2TargetFloor == mode2CurrentFloor)
+        {
+          mode2State = MODE2_WARNING;
+          mode2StateStartedMs = now;
+          mode2LastWarningPhase = 255;
+          return;
+        }
+
+        mode2State = (mode2TargetFloor > mode2CurrentFloor) ? MODE2_MOVING_UP : MODE2_MOVING_DOWN;
+        mode2StateStartedMs = now;
       }
       else if (key == '9')
       {
-        pauseMode2(now);
+        mode2Paused = true;
+        mode2PausedElapsedMs = now - mode2StateStartedMs;
+        currentMode = MODE_INITIAL;        
       }
       break;
 
@@ -1159,8 +1112,7 @@ void loop()
       else if (key == '9')
       {
         returnToMode3Menu();
-        currentMode = MODE_INITIAL;
-        setLcdData(" ELEVATOR SYSTEM", "  CIRCUIT DESIGN", "  & PROGRAMMING", "   2026.06.13");
+        currentMode = MODE_INITIAL;        
       }
       break;
     }
