@@ -469,16 +469,16 @@ void handleMode3Serial(uint32_t now)
       else if ((received == 8 || received == 127) && mode3PwLen > 0)
       {
         mode3PwInput[--mode3PwLen] = '\0';
-        char stars[9]; memset(stars, ' ', 8); stars[8] = '\0';
-        for (uint8_t i = 0; i < mode3PwLen; i++) stars[i] = '*';
-        Serial.print("\rPW: ["); Serial.print(stars); Serial.print("]");
+        Serial.print("\rPW: [");
+        for (uint8_t i = 0; i < mode3PwLen; i++) Serial.print('*');
+        Serial.print("]  ");
       }
       else if (mode3PwLen < 8 && received >= 32 && received < 127)
       {
         mode3PwInput[mode3PwLen++] = received;
-        char stars[9]; memset(stars, ' ', 8); stars[8] = '\0';
-        for (uint8_t i = 0; i < mode3PwLen; i++) stars[i] = '*';
-        Serial.print("\rPW: ["); Serial.print(stars); Serial.print("]");
+        Serial.print("\rPW: [");
+        for (uint8_t i = 0; i < mode3PwLen; i++) Serial.print('*');
+        Serial.print("]");
       }
       continue;
     }
@@ -567,10 +567,11 @@ void updateMode3(uint32_t now)
   {
   case MODE3_PASSWORD:
   {
-    char stars[9]; memset(stars, ' ', 8); stars[8] = '\0';
-    for (uint8_t i = 0; i < mode3PwLen; i++) stars[i] = '*';
     char pwLine[21];
-    sprintf(pwLine, "PW: [%-8s]", stars);
+    int pos = sprintf(pwLine, "PW: [");
+    for (uint8_t i = 0; i < mode3PwLen; i++) pwLine[pos++] = '*';
+    pwLine[pos++] = ']';
+    pwLine[pos] = '\0';
     setLcdData("   ADMIN MODE   ", "", pwLine, "");
     break;
   }
@@ -581,7 +582,7 @@ void updateMode3(uint32_t now)
       mode3PwLen = 0;
       memset(mode3PwInput, 0, sizeof(mode3PwInput));
       mode3State = MODE3_PASSWORD;
-      Serial.print("\rPW: [        ]");
+      Serial.print("\rPW: []          ");
     }
     break;
   case MODE3_MENU:
@@ -842,7 +843,7 @@ void loop()
         mode3PwLen = 0;
         memset(mode3PwInput, 0, sizeof(mode3PwInput));
         Serial.println("\n패스워드를 입력하세요:");
-        Serial.print("PW: [        ]");
+        Serial.print("PW: []");
       }
       break;
 
