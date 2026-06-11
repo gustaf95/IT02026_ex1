@@ -1,0 +1,5 @@
+1. Proteus 프로그램이 실행된 상태이면 Proteus 프로그램을 종료합니다.
+
+2. CAD(A4).DTF를 C:\Proteus 8\TEMPLATES  폴더에 저장(붙여넣기)하세요.
+
+3. Arduino Mega 2560.pdsclip를 C:\Proteus 8\Snippets\Arduino 폴더에 저장(붙여넣기)하세요.
