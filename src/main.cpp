@@ -66,7 +66,7 @@ char mode3LastPressedKey = '\0';
 uint32_t mode3StateStartedMs = 0;
 uint32_t mode3LastStepMs = 0;
 uint8_t mode3StepIndex = 0;
-uint8_t mode2LastWarningPhase = 0;
+uint8_t mode2WarningPhasePrev = 255;  // 이전에 처리된 phase 값 (변화 감지용)
 int mode3StartTemperature = 0;
 int mode3StartHumidity = 0;
 char mode3PwInput[9] = {0};
@@ -328,23 +328,23 @@ void updateMode2(uint32_t now)
   // 상태 전이
   if (mode2State == MODE2_WARNING)
   {
-    //경과시간 0ms~499ms  → phase = 0  (짝수 → 부저+FND ON)
-    //경과시간 500~999ms  → phase = 1  (홀수 → 무음+FND OFF)
-    //경과시간 1000~1499ms → phase = 2  (짝수 → 부저+FND ON)
-    //경과시간 1500~1999ms → phase = 3  (홀수 → 무음+FND OFF)
-    //경과시간 2000ms~    → phase = 4  → WARNING 종료
-    uint8_t phase = (uint8_t)((now - mode2StateStartedMs) / mode2WarningIntervalMs); //WARNING 상태가 시작된 이후 몇 번째 0.5초 구간인지 계산
-    if (phase != mode2LastWarningPhase)
+    //경과시간 0ms~499ms  → warningPhase = 0  (짝수 → 부저+FND ON)
+    //경과시간 500~999ms  → warningPhase = 1  (홀수 → 무음+FND OFF)
+    //경과시간 1000~1499ms → warningPhase = 2  (짝수 → 부저+FND ON)
+    //경과시간 1500~1999ms → warningPhase = 3  (홀수 → 무음+FND OFF)
+    //경과시간 2000ms~    → warningPhase = 4  → WARNING 종료
+    uint8_t warningPhase = (uint8_t)((now - mode2StateStartedMs) / mode2WarningIntervalMs); //WARNING 상태가 시작된 이후 몇 번째 0.5초 구간인지 계산
+    if (warningPhase != mode2WarningPhasePrev)
     {
-      mode2LastWarningPhase = phase;
-      if (phase < 4 && (phase % 2U) == 0U)
+      mode2WarningPhasePrev = warningPhase;
+      if (warningPhase < 4 && (warningPhase % 2U) == 0U)
         tone(buzzer_pin, BEEP_MODE2_FREQ, 100);
     }
-    if (phase >= 4) //2초 이상 경과한 상태. 2회 점멸이 끝났다는 뜻이므로 → MODE2_IDLE로 복귀
+    if (warningPhase >= 4) //2초 이상 경과한 상태. 2회 점멸이 끝났다는 뜻이므로 → MODE2_IDLE로 복귀
     {
       mode2State = MODE2_IDLE;
       mode2StateStartedMs = now;
-      mode2LastWarningPhase = 0;
+      mode2WarningPhasePrev = 255;  // 다시 초기화
     }
   }
   else if (mode2State == MODE2_MOVING_UP || mode2State == MODE2_MOVING_DOWN)
@@ -867,7 +867,7 @@ void loop()
         {
           mode2State = MODE2_WARNING;
           mode2StateStartedMs = now;
-          mode2LastWarningPhase = 255;
+          mode2WarningPhasePrev = 255;  // 다음 phase 변화를 감지하기 위해 초기화
           return;
         }
 
